@@ -20,6 +20,22 @@ create table if not exists folders (
   created_at timestamptz not null default now()
 );
 
+-- Métricas de performance (resultados reais por anúncio)
+create table if not exists metrics (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  project_id uuid references projects(id) on delete set null,
+  project_name text not null default 'Ad',
+  style text not null default '—',
+  platform text not null default 'Meta',
+  spend numeric not null default 0,
+  impressions numeric not null default 0,
+  clicks numeric not null default 0,
+  conversions numeric not null default 0,
+  revenue numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+
 -- Membros do time (colaboração)
 create table if not exists members (
   id uuid primary key default gen_random_uuid(),

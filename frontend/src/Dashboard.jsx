@@ -60,6 +60,8 @@ const IC = {
   wand: "M5 21l9-9M14 7l3 3M13 4l1-1 6 6-1 1M6 12l-1 1 4 4 1-1M3 13l2 2M19 13l2 2M13 19l2 2",
   music: "M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z",
   mic: "M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3zM19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8",
+  chart: "M3 21h18M7 21V11M12 21V6M17 21V14",
+  trophy: "M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM7 6H4v2a3 3 0 003 3M17 6h3v2a3 3 0 01-3 3",
 };
 
 const Ico = ({ d, size = 16, color = "currentColor", style }) => (
@@ -242,12 +244,14 @@ export default function Dashboard() {
 
   const [pendingStyle, setPendingStyle] = useState(null);
   const [pendingTemplate, setPendingTemplate] = useState(null);
+  const [pendingMetric, setPendingMetric] = useState(null);
   const t = makeT(lang);
   const startWithStyle = (s) => { setPendingStyle(s); setActiveView("studio"); notify("Style: " + s); };
   const startWithTemplate = (tpl) => { setPendingTemplate(tpl); setActiveView("studio"); notify("Template: " + tpl.name); };
-  const ctx = { health, me, reloadMe, notify, favs, toggleFav, lang, setLang: setLangPersist, openModal: setModal, folders, addFolder, removeFolder, setActiveView, t, pendingStyle, clearPendingStyle: () => setPendingStyle(null), startWithStyle, pendingTemplate, clearPendingTemplate: () => setPendingTemplate(null), startWithTemplate };
-  const NAV = [["explore", "Explore", IC.sparkles, "Explore"], ["studio", "Animation Studio", IC.film, "Studio"], ["projects", "Projects", IC.folder, "Projects"], ["queue", "Render Queue", IC.layer, "Queue"], ["assets", "Assets Library", IC.image, "Assets"], ["tools", "Tools", IC.wand, "Tools"]];
-  const TITLES = { explore: "Explore", studio: "AI Animation Engine", projects: "Projects", queue: "Render Queue", assets: "Assets Library", tools: "Tools", team: "Team", settings: "Settings & Integrations" };
+  const trackPerformance = (projectId) => { setPendingMetric(projectId || true); setActiveView("performance"); };
+  const ctx = { health, me, reloadMe, notify, favs, toggleFav, lang, setLang: setLangPersist, openModal: setModal, folders, addFolder, removeFolder, setActiveView, t, pendingStyle, clearPendingStyle: () => setPendingStyle(null), startWithStyle, pendingTemplate, clearPendingTemplate: () => setPendingTemplate(null), startWithTemplate, pendingMetric, clearPendingMetric: () => setPendingMetric(null), trackPerformance };
+  const NAV = [["explore", "Explore", IC.sparkles, "Explore"], ["studio", "Animation Studio", IC.film, "Studio"], ["projects", "Projects", IC.folder, "Projects"], ["queue", "Render Queue", IC.layer, "Queue"], ["assets", "Assets Library", IC.image, "Assets"], ["performance", "Performance", IC.chart, "Perf"], ["tools", "Tools", IC.wand, "Tools"]];
+  const TITLES = { explore: "Explore", studio: "AI Animation Engine", projects: "Projects", queue: "Render Queue", assets: "Assets Library", performance: "Performance", tools: "Tools", team: "Team", settings: "Settings & Integrations" };
 
   return (
     <UICtx.Provider value={ctx}>
@@ -334,6 +338,7 @@ export default function Dashboard() {
             {activeView === "queue" && <RenderQueue />}
             {activeView === "assets" && <AssetsLibrary />}
             {activeView === "tools" && <ToolsView />}
+            {activeView === "performance" && <PerformanceView />}
             {activeView === "team" && <TeamView />}
             {activeView === "settings" && <SettingsView />}
           </div>
@@ -715,7 +720,7 @@ function AnimationEngine() {
                     <video ref={videoRef} src={job.outputUrl} crossOrigin="anonymous" controls style={{ width: "100%", maxHeight: 460, borderRadius: 12, background: T.bg3 }} />
                     <div style={{ marginTop: 16 }}><VideoActions url={job.outputUrl} id={ids.jobId} videoRef={videoRef} onRegen={renderVideo} regenLabel="Generate variation" /></div>
                     <ExportRow projectId={ids.projectId} />
-                    <PublishCard url={job.outputUrl} preview={preview} />
+                    <PublishCard url={job.outputUrl} preview={preview} projectId={ids.projectId} />
                     {Number(job.cost) > 0 && <div style={{ marginTop: 12 }}><Badge>Cost ~ ${Number(job.cost).toFixed(2)}</Badge></div>}
                   </div>
                 )}
@@ -843,7 +848,7 @@ function Stepper({ stage }) {
 }
 
 // Bloco "Publicar": baixar, copiar legenda + abrir a plataforma. Fecha o fluxo.
-function PublishCard({ url, preview }) {
+function PublishCard({ url, preview, projectId }) {
   const ui = useUI();
   const tags = preview?.audio?.hashtags || [];
   const caption = [preview?.hook, preview?.cta].filter(Boolean).join("\n\n") + (tags.length ? "\n\n" + tags.join(" ") : "");
@@ -855,8 +860,11 @@ function PublishCard({ url, preview }) {
   ];
   return (
     <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${T.line}` }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 4 }}>Publish your ad</div>
-      <div style={{ fontSize: 12, color: T.sub, marginBottom: 14 }}>Download the .mp4, copy the caption, and open your platform to post.</div>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, flex: 1 }}>Publish your ad</div>
+        <Btn style={{ height: 32, fontSize: 12 }} onClick={() => ui.trackPerformance(projectId)}><Ico d={IC.chart} size={14} /> Track performance</Btn>
+      </div>
+      <div style={{ fontSize: 12, color: T.sub, marginBottom: 14 }}>Download the .mp4, copy the caption, open your platform — then log the results to learn what works.</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: caption.trim() ? 16 : 0 }}>
         {platforms.map(([n, u]) => <Btn key={n} onClick={() => window.open(u, "_blank")}><Ico d={IC.external} size={14} /> {n}</Btn>)}
       </div>
@@ -1142,6 +1150,145 @@ function ToolsView() {
         </CanvasCard>
       </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIEW: Performance — registra resultados reais e ranqueia estilos
+// ═══════════════════════════════════════════════════════════════
+const fmtMoney = (v) => "$" + Math.round(v || 0).toLocaleString("en-US");
+const fmtNum = (v) => Math.round(v || 0).toLocaleString("en-US");
+
+function PerformanceView() {
+  const ui = useUI();
+  const [metrics, setMetrics] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [showLog, setShowLog] = useState(false);
+  const [prefill, setPrefill] = useState("");
+  const load = () => api("/metrics?userId=local-user").then(r => r.json()).then(setMetrics).catch(() => setMetrics([]));
+  useEffect(() => { load(); api("/projects").then(r => r.json()).then(setProjects).catch(() => {}); }, []);
+  useEffect(() => { if (ui.pendingMetric) { setPrefill(typeof ui.pendingMetric === "string" ? ui.pendingMetric : ""); setShowLog(true); ui.clearPendingMetric?.(); } }, [ui.pendingMetric]);
+
+  const m = metrics || [];
+  const sum = (k) => m.reduce((a, x) => a + (Number(x[k]) || 0), 0);
+  const spend = sum("spend"), impr = sum("impressions"), clicks = sum("clicks"), conv = sum("conversions"), rev = sum("revenue");
+  const kpis = [
+    { label: "Spend", val: fmtMoney(spend) },
+    { label: "Impressions", val: fmtNum(impr) },
+    { label: "CTR", val: (impr ? clicks / impr * 100 : 0).toFixed(2) + "%" },
+    { label: "Conversions", val: fmtNum(conv) },
+    { label: "ROAS", val: (spend ? rev / spend : 0).toFixed(2) + "x" },
+  ];
+  const byStyle = {};
+  for (const x of m) { const s = x.style || "—"; (byStyle[s] ||= { style: s, spend: 0, rev: 0, clicks: 0, impr: 0, n: 0 }); const g = byStyle[s]; g.spend += +x.spend || 0; g.rev += +x.revenue || 0; g.clicks += +x.clicks || 0; g.impr += +x.impressions || 0; g.n++; }
+  const ranking = Object.values(byStyle).map(g => ({ ...g, roas: g.spend ? g.rev / g.spend : 0, ctr: g.impr ? g.clicks / g.impr * 100 : 0 })).sort((a, b) => b.roas - a.roas);
+  const del = async (id) => { await api(`/metrics/${id}`, { method: "DELETE" }); load(); };
+
+  return (
+    <div style={{ flex: 1, padding: 40, overflowY: "auto", zIndex: 1 }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
+          <div style={{ flex: 1 }}><div style={{ fontSize: 24, fontWeight: 800, color: T.ink }}>Performance</div><div style={{ fontSize: 14, color: T.sub, marginTop: 4 }}>Log the real results of your ads and see which style converts best.</div></div>
+          <Btn primary onClick={() => { setPrefill(""); setShowLog(true); }}><Ico d={IC.plus} size={16} color={T.bg} /> Log result</Btn>
+        </div>
+
+        {metrics === null ? <Spinner /> : m.length === 0 ? (
+          <div style={{ border: `1px dashed ${T.lineDark}`, borderRadius: 14, padding: 48, textAlign: "center", color: T.sub }}>
+            <Ico d={IC.chart} size={30} color={T.muted} style={{ marginBottom: 12 }} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, marginBottom: 4 }}>No results yet</div>
+            <div style={{ fontSize: 13, marginBottom: 18, maxWidth: 420, marginInline: "auto" }}>After you post an ad, log its numbers here (spend, CTR, ROAS…). The platform shows which style and hook perform best — so you double down on winners.</div>
+            <Btn primary onClick={() => { setPrefill(""); setShowLog(true); }}><Ico d={IC.plus} size={15} color={T.bg} /> Log your first result</Btn>
+          </div>
+        ) : (
+          <>
+            {/* KPIs */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 24 }}>
+              {kpis.map(k => <div key={k.label} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: 18, background: T.bg }}><div style={{ fontSize: 22, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em" }}>{k.val}</div><div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>{k.label}</div></div>)}
+            </div>
+
+            {/* Ranking por estilo */}
+            <div style={{ fontSize: 16, fontWeight: 800, color: T.ink, marginBottom: 12 }}>Best-performing styles</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginBottom: 28 }}>
+              {ranking.map((g, i) => (
+                <div key={g.style} style={{ border: `1px solid ${i === 0 ? T.ink : T.line}`, borderRadius: 12, padding: 16, background: T.bg }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    {i === 0 ? <Ico d={IC.trophy} size={16} color={T.ink} /> : <span style={{ fontSize: 12, fontWeight: 700, color: T.muted }}>#{i + 1}</span>}
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.style}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ fontSize: 22, fontWeight: 800, color: T.ink }}>{g.roas.toFixed(2)}x</span><span style={{ fontSize: 11, color: T.sub }}>ROAS</span></div>
+                  <div style={{ fontSize: 11, color: T.sub, marginTop: 4 }}>CTR {g.ctr.toFixed(2)}% · {g.n} ad{g.n > 1 ? "s" : ""} · {fmtMoney(g.spend)} spent</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tabela de resultados */}
+            <div style={{ fontSize: 16, fontWeight: 800, color: T.ink, marginBottom: 12 }}>Logged results</div>
+            <div style={{ background: T.bg, border: `1px solid ${T.lineDark}`, borderRadius: 12, overflow: "hidden", overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", minWidth: 760 }}>
+                <thead><tr style={{ background: T.bg2, borderBottom: `1px solid ${T.lineDark}` }}>{["Ad", "Style", "Platform", "Spend", "Impr.", "CTR", "Conv.", "Revenue", "ROAS", ""].map(h => <th key={h} style={{ ...th, padding: "12px 16px" }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {m.map((x, i) => {
+                    const ctr = x.impressions ? x.clicks / x.impressions * 100 : 0; const roas = x.spend ? x.revenue / x.spend : 0;
+                    return (
+                      <tr key={x.id} style={{ borderBottom: i === m.length - 1 ? "none" : `1px solid ${T.line}`, fontSize: 13, color: T.text }}>
+                        <td style={{ padding: "12px 16px", fontWeight: 600, color: T.ink }}>{x.project_name}</td>
+                        <td style={{ padding: "12px 16px" }}><Badge>{x.style}</Badge></td>
+                        <td style={{ padding: "12px 16px" }}>{x.platform}</td>
+                        <td style={{ padding: "12px 16px" }}>{fmtMoney(x.spend)}</td>
+                        <td style={{ padding: "12px 16px" }}>{fmtNum(x.impressions)}</td>
+                        <td style={{ padding: "12px 16px" }}>{ctr.toFixed(2)}%</td>
+                        <td style={{ padding: "12px 16px" }}>{fmtNum(x.conversions)}</td>
+                        <td style={{ padding: "12px 16px" }}>{fmtMoney(x.revenue)}</td>
+                        <td style={{ padding: "12px 16px", fontWeight: 700, color: T.ink }}>{roas.toFixed(2)}x</td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}><IconBtn size={14} icon={IC.x} title="Delete" onClick={() => del(x.id)} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+      {showLog && <LogMetricModal projects={projects} prefill={prefill} onClose={() => setShowLog(false)} onSaved={load} />}
+    </div>
+  );
+}
+
+function LogMetricModal({ projects, prefill, onClose, onSaved }) {
+  const ui = useUI();
+  const [pid, setPid] = useState(prefill || "");
+  const [platform, setPlatform] = useState("Meta");
+  const [v, setV] = useState({ spend: "", impressions: "", clicks: "", conversions: "", revenue: "" });
+  const [busy, setBusy] = useState(false);
+  const num = (p) => <Input type="number" min="0" value={v[p]} onChange={e => setV(s => ({ ...s, [p]: e.target.value }))} placeholder="0" />;
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api("/metrics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: "local-user", projectId: pid || undefined, platform, spend: +v.spend || 0, impressions: +v.impressions || 0, clicks: +v.clicks || 0, conversions: +v.conversions || 0, revenue: +v.revenue || 0 }) });
+      ui.notify("Result logged"); onSaved(); onClose();
+    } catch { ui.notify("Failed to save"); }
+    setBusy(false);
+  };
+  return (
+    <Modal title="Log a result" onClose={onClose} width={540}>
+      <div style={{ display: "grid", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div><Label>Ad / Project</Label><Select value={pid} onChange={e => setPid(e.target.value)} options={[{ val: "", label: "— none —" }, ...projects.map(p => ({ val: p.id, label: p.name }))]} /></div>
+          <div><Label>Platform</Label><Select value={platform} onChange={e => setPlatform(e.target.value)} options={["Meta", "TikTok", "Instagram", "YouTube"]} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div><Label>Spend ($)</Label>{num("spend")}</div>
+          <div><Label>Revenue ($)</Label>{num("revenue")}</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+          <div><Label>Impressions</Label>{num("impressions")}</div>
+          <div><Label>Clicks</Label>{num("clicks")}</div>
+          <div><Label>Conversions</Label>{num("conversions")}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}><Btn onClick={onClose}>Cancel</Btn><Btn primary disabled={busy} onClick={save}>{busy ? <Spinner light /> : "Save result"}</Btn></div>
+    </Modal>
   );
 }
 

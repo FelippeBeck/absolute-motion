@@ -171,6 +171,24 @@ app.post("/projects/:id/export", async (req, res) => {
   } catch (e: any) { captureError(e); res.status(400).json({ error: String(e?.message || e) }); }
 });
 
+// ── Performance: registrar resultados reais e listar (ranking é calculado no front) ──
+app.post("/metrics", async (req, res) => {
+  try {
+    const b = req.body || {};
+    let project_name = b.projectName, style = b.style;
+    if (b.projectId) { const p = await store.getProject(String(b.projectId)); if (p) { project_name = p.name; style = (p.brief as any)?.style || style; } }
+    const num = (v: any) => Math.max(0, Number(v) || 0);
+    const rec = await store.addMetric({
+      user_id: String(b.userId || "local-user"), project_id: b.projectId || null,
+      project_name: project_name || "Ad", style: style || "—", platform: String(b.platform || "Meta"),
+      spend: num(b.spend), impressions: num(b.impressions), clicks: num(b.clicks), conversions: num(b.conversions), revenue: num(b.revenue),
+    });
+    res.json(rec);
+  } catch (e: any) { captureError(e); res.status(400).json({ error: String(e?.message || e) }); }
+});
+app.get("/metrics", async (req, res) => { res.json(await store.listMetrics(String(req.query.userId || "local-user"))); });
+app.delete("/metrics/:id", async (req, res) => { await store.deleteMetric(req.params.id); res.json({ ok: true }); });
+
 // ── Webhook do fal (escala): fal chama isto quando um job assíncrono termina ──
 app.post("/webhooks/fal", async (req, res) => {
   // Scaffold: em produção, mapeie request_id → cena/job e atualize o store.

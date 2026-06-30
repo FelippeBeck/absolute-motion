@@ -24,6 +24,11 @@ export type Project = {
 
 export type Folder = { id: string; user_id: string; name: string; created_at: string };
 export type Member = { id: string; owner: string; email: string; role: string; created_at: string };
+export type Metric = {
+  id: string; user_id: string; project_id?: string | null; project_name: string; style: string;
+  platform: string; spend: number; impressions: number; clicks: number; conversions: number; revenue: number;
+  created_at: string;
+};
 
 export type Job = {
   id: string;
@@ -85,6 +90,10 @@ export interface Store {
   addMember(m: { owner: string; email: string; role: string }): Promise<Member>;
   updateMember(id: string, role: string): Promise<void>;
   removeMember(id: string): Promise<void>;
+
+  addMetric(m: Partial<Metric>): Promise<Metric>;
+  listMetrics(userId: string): Promise<Metric[]>;
+  deleteMetric(id: string): Promise<void>;
 }
 
 const now = () => new Date().toISOString();
@@ -98,6 +107,7 @@ class MemoryStore implements Store {
   private credits = new Map<string, number>();
   private folders = new Map<string, Folder>();
   private members = new Map<string, Member>();
+  private metrics = new Map<string, Metric>();
 
   async createProject(p: Partial<Project>): Promise<Project> {
     const proj: Project = {
@@ -240,6 +250,21 @@ class MemoryStore implements Store {
   }
   async updateMember(id: string, role: string) { const m = this.members.get(id); if (m) this.members.set(id, { ...m, role }); }
   async removeMember(id: string) { this.members.delete(id); }
+
+  async addMetric(m: Partial<Metric>) {
+    const rec: Metric = {
+      id: randomUUID(), user_id: m.user_id || "local-user", project_id: m.project_id ?? null,
+      project_name: m.project_name || "Ad", style: m.style || "—", platform: m.platform || "Meta",
+      spend: m.spend || 0, impressions: m.impressions || 0, clicks: m.clicks || 0, conversions: m.conversions || 0, revenue: m.revenue || 0,
+      created_at: now(),
+    };
+    this.metrics.set(rec.id, rec);
+    return rec;
+  }
+  async listMetrics(userId: string) {
+    return [...this.metrics.values()].filter((x) => x.user_id === userId).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+  async deleteMetric(id: string) { this.metrics.delete(id); }
 }
 
 // ───────────────────────────── Supabase ─────────────────────────────
@@ -376,6 +401,19 @@ class SupabaseStore implements Store {
   }
   async updateMember(id: string, role: string) { const db = await this.db(); await db.from("members").update({ role }).eq("id", id); }
   async removeMember(id: string) { const db = await this.db(); await db.from("members").delete().eq("id", id); }
+
+  async addMetric(m: Partial<Metric>) {
+    const db = await this.db();
+    const { data, error } = await db.from("metrics").insert(m).select().single();
+    if (error) throw error;
+    return data as Metric;
+  }
+  async listMetrics(userId: string) {
+    const db = await this.db();
+    const { data } = await db.from("metrics").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    return (data as Metric[]) ?? [];
+  }
+  async deleteMetric(id: string) { const db = await this.db(); await db.from("metrics").delete().eq("id", id); }
 }
 
 export const store: Store = has.supabase() ? new SupabaseStore() : new MemoryStore();
