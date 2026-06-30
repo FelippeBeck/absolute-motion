@@ -16,10 +16,5 @@ frontend/dist/
 *.log
 npm-debug.log*
 
-# ── Lixo / backups antigos deste diretório ──
+# ── Backups / exports antigos ──
 *.zip
-/absolute-motion-backend/
-/absolute-motion-backend 2/
-/absolute-motion.jsx
-/absolute-motion_1.jsx
-/absolute-motion-landing.jsx
