@@ -68,16 +68,10 @@ const Ico = ({ d, size = 16, color = "currentColor", style }) => (
   </svg>
 );
 
-// Logo monocromático Absolute Motion (monograma AM).
-const Logo = ({ size = 30 }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-label="Absolute Motion" style={{ flexShrink: 0, display: "block" }}>
-    <rect width="64" height="64" rx="14" fill={T.ink} />
-    <g stroke={T.bg} strokeWidth="5" fill="none" strokeLinejoin="miter" strokeLinecap="butt">
-      <path d="M10 46 L19 19 L28 46" />
-      <path d="M13.5 35 H24.5" />
-      <path d="M32 46 V19 L43 33 L54 19 V46" />
-    </g>
-  </svg>
+// Logo oficial Absolute Motion (monograma AM). Troque frontend/public/logo.svg
+// pela sua versão exata (.svg ou .png) que tudo atualiza automaticamente.
+const Logo = ({ height = 34 }) => (
+  <img src="/logo.svg" alt="Absolute Motion" style={{ height, width: "auto", display: "block", flexShrink: 0 }} />
 );
 
 // ── Primitives ──────────────────────────────────────
@@ -263,9 +257,8 @@ export default function Dashboard() {
 
       {/* Sidebar */}
       <div style={{ width: collapsed ? 88 : 264, borderRight: `1px solid ${T.line}`, display: "flex", flexDirection: "column", flexShrink: 0, background: T.bg2, transition: "width 0.2s ease" }}>
-        <div style={{ height: 64, padding: collapsed ? "0 12px" : "0 20px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${T.line}`, justifyContent: collapsed ? "center" : "flex-start", position: "relative" }}>
-          <Logo size={30} />
-          {!collapsed && <span style={{ fontWeight: 800, fontSize: 15, color: T.ink, letterSpacing: "-0.01em" }}>Absolute Motion</span>}
+        <div style={{ height: 64, padding: collapsed ? "0 10px" : "0 20px", display: "flex", alignItems: "center", borderBottom: `1px solid ${T.line}`, justifyContent: collapsed ? "center" : "flex-start", position: "relative" }}>
+          <Logo height={collapsed ? 30 : 40} />
           <button onClick={() => setCollapsed(!collapsed)} title={collapsed ? "Expand" : "Collapse"} style={{ position: "absolute", right: -12, top: "50%", transform: "translateY(-50%)", width: 24, height: 24, background: T.bg, border: `1px solid ${T.lineDark}`, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.ink, zIndex: 10 }}><Ico d={IC.chevronDown} size={14} style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(90deg)" }} /></button>
         </div>
 
@@ -457,7 +450,7 @@ function ExploreView() {
       <div style={{ maxWidth: 1160, margin: "0 auto" }}>
         {/* Hero */}
         <div style={{ border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 32, position: "relative", overflow: "hidden", background: T.bg }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}><Logo size={34} /><span style={{ fontWeight: 800, fontSize: 15, color: T.ink }}>Absolute Motion</span></div>
+          <div style={{ marginBottom: 16 }}><Logo height={40} /></div>
           <div style={{ fontSize: 32, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em", maxWidth: 560, lineHeight: 1.15 }}>Create your next animated ad in minutes</div>
           <div style={{ fontSize: 14, color: T.sub, marginTop: 10, maxWidth: 560 }}>Pick a style, drop your product photo, and the engine writes the script, renders every scene, and stitches a finished ad — ready for Meta, TikTok, Reels & Shorts.</div>
           <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
