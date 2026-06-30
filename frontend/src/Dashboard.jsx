@@ -407,12 +407,31 @@ function NotificationsBell() {
 // ═══════════════════════════════════════════════════════════════
 const STYLE_VIEWS = { "Claymation": "451M", "Pixar 3D style": "388M", "Anime": "540M", "Paper Cutout": "92M", "LEGO": "210M", "Wes Anderson": "167M", "Retro Cartoon": "130M", "Surreal 3D": "305M", "Miniature": "78M", "Realistic / Photographic": "96M", "Motion Graphics": "142M" };
 const TREND_VIEWS = ["9.4M", "12.7M", "4.0M", "21.1M", "6.8M", "3.3M", "18M", "12M"];
+const SCAN_FEED = ["@petlovers.br", "@techgadgetz", "@glow.skincare", "@fitfuel", "@homehacks", "@toy.world", "@coffee.daily", "@ecomgrowth"];
+
+// Número que "conta" de 0 até o alvo (easing) — dá vida às estatísticas.
+function CountUp({ to, fmt, dur = 1000 }) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf; const start = performance.now();
+    const tick = (t) => { const p = Math.min(1, (t - start) / dur); setV(to * (1 - Math.pow(1 - p, 3))); if (p < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf);
+  }, [to, dur]);
+  return <>{fmt(v)}</>;
+}
 
 function ExploreView() {
   const ui = useUI();
   const [ads, setAds] = useState(0);
+  const [si, setSi] = useState(0);
   useEffect(() => { api("/jobs").then(r => r.json()).then(j => setAds((j || []).filter(x => x.status === "done").length)).catch(() => {}); }, []);
-  const stats = [["6,078", "Ads analyzed"], ["454.2M", "Views scanned"], ["1,669", "Winning patterns"], [String(ads), "Animation ads generated"]];
+  useEffect(() => { const t = setInterval(() => setSi(i => (i + 1) % SCAN_FEED.length), 1800); return () => clearInterval(t); }, []);
+  const stats = [
+    { n: 6078, fmt: (v) => Math.round(v).toLocaleString("en-US"), label: "Ads analyzed" },
+    { n: 454.2, fmt: (v) => v.toFixed(1) + "M", label: "Views scanned" },
+    { n: 1669, fmt: (v) => Math.round(v).toLocaleString("en-US"), label: "Winning patterns" },
+    { n: ads, fmt: (v) => String(Math.round(v)), label: "Animation ads generated" },
+  ];
   const tiles = STYLES.slice(0, 8);
 
   return (
@@ -423,17 +442,17 @@ function ExploreView() {
           <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, letterSpacing: 2, textTransform: "uppercase" }}>AI · Creative · Ad Agent</div>
           <div style={{ fontSize: 34, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em", margin: "6px 0 8px" }}>Animation <span style={{ fontStyle: "italic", fontWeight: 700 }}>OS</span></div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.sub }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.ink }} className="blink" /> Scanning viral animation patterns on TikTok in real time
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.ink }} className="blink" /> Scanning viral animation patterns on TikTok · <span key={si} className="fade" style={{ fontWeight: 700, color: T.ink }}>{SCAN_FEED[si]}</span>
           </div>
           <div style={{ position: "absolute", top: 24, right: 24 }}><Btn primary onClick={() => ui.setActiveView("studio")}><Ico d={IC.play} size={14} color={T.bg} /> Run automation</Btn></div>
         </div>
 
         {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
-          {stats.map(([v, l]) => (
-            <div key={l} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: 20, background: T.bg }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em" }}>{v}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>{l}</div>
+          {stats.map((s) => (
+            <div key={s.label} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: 20, background: T.bg }}>
+              <div style={{ fontSize: 26, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em" }}><CountUp to={s.n} fmt={s.fmt} /></div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>{s.label}</div>
             </div>
           ))}
         </div>
