@@ -648,27 +648,10 @@ function AnimationEngine() {
             )}
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <Label>End frame (optional)</Label>
-            <input ref={endRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async e => { const file = e.target.files?.[0]; if (file) setEndFrame(await fileToData(file)); }} />
-            {!endFrame ? (
-              <div onClick={() => endRef.current?.click()} style={{ border: `1px dashed ${T.lineDark}`, borderRadius: 12, padding: "14px 16px", textAlign: "center", background: T.bg2, cursor: "pointer", fontSize: 12, color: T.sub }}>Click to set the last frame of the ad</div>
-            ) : (
-              <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: `1px solid ${T.line}` }}><img src={endFrame.dataUrl} alt="" style={{ width: "100%", maxHeight: 140, objectFit: "cover", display: "block" }} /><button onClick={() => { setEndFrame(null); if (endRef.current) endRef.current.value = ""; }} style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer" }}><Ico d={IC.x} size={13} color="#fff" /></button></div>
-            )}
-          </div>
-
           <div style={{ display: "grid", gap: 18 }}>
             <div><Label>Product / Service *</Label><Input value={f.product} onChange={e => update("product", e.target.value)} placeholder="e.g. Sincere Whey Protein" /></div>
-            <div><Label>Description / benefits</Label><TextArea value={f.desc} onChange={e => update("desc", e.target.value)} style={{ height: 72 }} placeholder="What makes it special?" /></div>
+            <div><Label>One-line pitch</Label><TextArea value={f.desc} onChange={e => update("desc", e.target.value)} style={{ height: 64 }} placeholder="What makes it special? (one line is enough)" /></div>
             <div><Label>Landing page URL (optional)</Label><Input value={f.landingUrl} onChange={e => update("landingUrl", e.target.value)} placeholder="https://yourstore.com/product — the engine reads it" /></div>
-            <div><Label>Audio</Label><Segmented value={f.audioMode} onChange={v => update("audioMode", v)} options={[{ val: "narration", label: "AI Narration", icon: IC.mic }, { val: "music", label: "Music only", icon: IC.music }]} /></div>
-            <div><Label>Background music</Label><Select value={f.musicMood} onChange={e => update("musicMood", e.target.value)} options={MUSIC_MOODS} /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div><Label>Image model</Label><Select value={f.imageModel} onChange={e => update("imageModel", e.target.value)} options={IMAGE_MODELS} /></div>
-              <div><Label>Video model</Label><Select value={f.videoModel} onChange={e => update("videoModel", e.target.value)} options={VIDEO_MODELS} /></div>
-            </div>
-            <div style={{ fontSize: 11, color: T.muted, marginTop: -10, display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.sparkles} size={12} color={T.muted} /> {MODEL_NOTES[f.videoModel]}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div><Label>Style</Label>
                 <button onClick={() => setShowStyles(true)} style={{ width: "100%", padding: "10px 14px", background: T.bg, border: `1px solid ${T.line}`, borderRadius: 8, fontSize: 13, color: T.ink, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8 }}>
@@ -677,15 +660,30 @@ function AnimationEngine() {
               </div>
               <div><Label>Format</Label><Select value={f.format} onChange={e => update("format", e.target.value)} options={FORMATS} /></div>
             </div>
-            <div><Label>Duration</Label><Select value={f.duration} onChange={e => update("duration", parseInt(e.target.value))} options={DURATIONS} /></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div><Label>Resolution</Label><Segmented value={f.resolution} onChange={v => update("resolution", v)} options={RES_OPTS} /></div>
-              <div><Label>Outputs</Label><Segmented value={f.outputs} onChange={v => update("outputs", v)} options={OUTPUT_OPTS} /></div>
+              <div><Label>Duration</Label><Select value={f.duration} onChange={e => update("duration", parseInt(e.target.value))} options={DURATIONS} /></div>
+              <div><Label>Audio</Label><Segmented value={f.audioMode} onChange={v => update("audioMode", v)} options={[{ val: "narration", label: "Narration", icon: IC.mic }, { val: "music", label: "Music", icon: IC.music }]} /></div>
             </div>
 
-            <div onClick={() => setAdvanced(a => !a)} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: T.sub, fontSize: 12, fontWeight: 600, userSelect: "none" }}><Ico d={IC.chevronDown} size={14} style={{ transform: advanced ? "rotate(180deg)" : "none", transition: "transform .2s" }} /> {ui.t("More options")}</div>
+            <div onClick={() => setAdvanced(a => !a)} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: T.sub, fontSize: 12, fontWeight: 600, userSelect: "none", marginTop: 2 }}><Ico d={IC.settings} size={14} /> {ui.t("More options")}<Ico d={IC.chevronDown} size={14} style={{ marginLeft: "auto", transform: advanced ? "rotate(180deg)" : "none", transition: "transform .2s" }} /></div>
             {advanced && (
               <div className="fade" style={{ display: "grid", gap: 18, padding: 16, background: T.bg2, borderRadius: 12, border: `1px solid ${T.line}` }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div><Label>Image model</Label><Select value={f.imageModel} onChange={e => update("imageModel", e.target.value)} options={IMAGE_MODELS} /></div>
+                  <div><Label>Video model</Label><Select value={f.videoModel} onChange={e => update("videoModel", e.target.value)} options={VIDEO_MODELS} /></div>
+                </div>
+                <div style={{ fontSize: 11, color: T.muted, marginTop: -10, display: "flex", alignItems: "center", gap: 6 }}><Ico d={IC.sparkles} size={12} color={T.muted} /> {MODEL_NOTES[f.videoModel]}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div><Label>Resolution</Label><Segmented value={f.resolution} onChange={v => update("resolution", v)} options={RES_OPTS} /></div>
+                  <div><Label>Outputs</Label><Segmented value={f.outputs} onChange={v => update("outputs", v)} options={OUTPUT_OPTS} /></div>
+                </div>
+                <div><Label>Background music</Label><Select value={f.musicMood} onChange={e => update("musicMood", e.target.value)} options={MUSIC_MOODS} /></div>
+                <div>
+                  <Label>End frame (optional)</Label>
+                  <input ref={endRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async e => { const file = e.target.files?.[0]; if (file) setEndFrame(await fileToData(file)); }} />
+                  {!endFrame ? <div onClick={() => endRef.current?.click()} style={{ border: `1px dashed ${T.lineDark}`, borderRadius: 10, padding: "12px 14px", textAlign: "center", background: T.bg, cursor: "pointer", fontSize: 12, color: T.sub }}>Click to set the last frame</div>
+                    : <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.line}` }}><img src={endFrame.dataUrl} alt="" style={{ width: "100%", maxHeight: 120, objectFit: "cover", display: "block" }} /><button onClick={() => { setEndFrame(null); if (endRef.current) endRef.current.value = ""; }} style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", cursor: "pointer" }}><Ico d={IC.x} size={12} color="#fff" /></button></div>}
+                </div>
                 <div><Label>Target audience</Label><Input value={f.audience} onChange={e => update("audience", e.target.value)} placeholder="e.g. gym-goers 20-35y" /></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}><div><Label>Objective</Label><Select value={f.objective} onChange={e => update("objective", e.target.value)} options={OBJECTIVES} /></div><div><Label>Tone</Label><Select value={f.tone} onChange={e => update("tone", e.target.value)} options={TONES} /></div></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}><div><Label>Language</Label><Select value={f.lang} onChange={e => update("lang", e.target.value)} options={LANGS} /></div><div><Label>Voice</Label><Select value={f.voice} onChange={e => update("voice", e.target.value)} options={VOICES} /></div></div>
@@ -703,6 +701,7 @@ function AnimationEngine() {
       {/* Canvas */}
       <div style={{ flex: 1, padding: 40, overflowY: "auto" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          <Stepper stage={stage} />
           {stage === "idle" && <CanvasCard><EmptyState /></CanvasCard>}
           {stage === "error" && <CanvasCard><div style={{ background: T.bg2, border: `1px solid ${T.lineDark}`, borderRadius: 12, padding: 24, display: "flex", gap: 16, color: T.text }}><Ico d={IC.alert} size={24} color={T.sub} /><div><div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: T.ink }}>Error</div><div style={{ fontSize: 13 }}>{errorMsg}</div><div style={{ fontSize: 12, color: T.sub, marginTop: 12 }}>Make sure the backend is running on :8787.</div></div></div></CanvasCard>}
           {(stage === "streaming" || stage === "preview") && preview && <CanvasCard><Storyboard preview={preview} streaming={stage === "streaming"} editable={stage === "preview"} onChange={setPreview} /></CanvasCard>}
@@ -716,6 +715,7 @@ function AnimationEngine() {
                     <video ref={videoRef} src={job.outputUrl} crossOrigin="anonymous" controls style={{ width: "100%", maxHeight: 460, borderRadius: 12, background: T.bg3 }} />
                     <div style={{ marginTop: 16 }}><VideoActions url={job.outputUrl} id={ids.jobId} videoRef={videoRef} onRegen={renderVideo} regenLabel="Generate variation" /></div>
                     <ExportRow projectId={ids.projectId} />
+                    <PublishCard url={job.outputUrl} preview={preview} />
                     {Number(job.cost) > 0 && <div style={{ marginTop: 12 }}><Badge>Cost ~ ${Number(job.cost).toFixed(2)}</Badge></div>}
                   </div>
                 )}
@@ -822,6 +822,53 @@ function ShareMenu({ url }) {
 
 const CanvasCard = ({ children }) => <div style={{ background: T.bg, padding: 32, border: `1px solid ${T.lineDark}`, borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}>{children}</div>;
 function EmptyState() { return <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300, color: T.muted, textAlign: "center" }}><div style={{ width: 64, height: 64, background: T.bg2, border: `1px solid ${T.line}`, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}><Ico d={IC.server} size={32} color={T.sub} /></div><div style={{ fontSize: 18, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Ready to create</div><div style={{ fontSize: 14, maxWidth: 360 }}>Upload the product photo, fill the brief and hit <strong>Generate Storyboard</strong>. Then just <strong>Render Video</strong>.</div></div>; }
+
+// Passos do fluxo de criação (sempre visível: você sabe onde está e o que vem).
+function Stepper({ stage }) {
+  const steps = ["Brief", "Storyboard", "Render", "Publish"];
+  const idx = stage === "idle" ? 0 : (stage === "streaming" || stage === "preview") ? 1 : stage === "rendering" ? 2 : stage === "done" ? 3 : 0;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+      {steps.map((s, i) => (
+        <React.Fragment key={s}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 24, height: 24, borderRadius: "50%", background: i <= idx ? T.ink : T.bg, color: i <= idx ? "#fff" : T.muted, border: `1px solid ${i <= idx ? T.ink : T.lineDark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i < idx ? "✓" : i + 1}</div>
+            <span style={{ fontSize: 12, fontWeight: i === idx ? 700 : 500, color: i <= idx ? T.ink : T.muted, whiteSpace: "nowrap" }}>{s}</span>
+          </div>
+          {i < steps.length - 1 && <div style={{ flex: 1, height: 1, background: i < idx ? T.ink : T.line }} />}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+// Bloco "Publicar": baixar, copiar legenda + abrir a plataforma. Fecha o fluxo.
+function PublishCard({ url, preview }) {
+  const ui = useUI();
+  const tags = preview?.audio?.hashtags || [];
+  const caption = [preview?.hook, preview?.cta].filter(Boolean).join("\n\n") + (tags.length ? "\n\n" + tags.join(" ") : "");
+  const platforms = [
+    ["Meta Ads Manager", "https://www.facebook.com/adsmanager"],
+    ["TikTok", "https://www.tiktok.com/tiktokstudio/upload"],
+    ["Instagram", "https://www.instagram.com"],
+    ["YouTube Shorts", "https://studio.youtube.com"],
+  ];
+  return (
+    <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${T.line}` }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 4 }}>Publish your ad</div>
+      <div style={{ fontSize: 12, color: T.sub, marginBottom: 14 }}>Download the .mp4, copy the caption, and open your platform to post.</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: caption.trim() ? 16 : 0 }}>
+        {platforms.map(([n, u]) => <Btn key={n} onClick={() => window.open(u, "_blank")}><Ico d={IC.external} size={14} /> {n}</Btn>)}
+      </div>
+      {caption.trim() && (
+        <div style={{ border: `1px solid ${T.line}`, borderRadius: 10, padding: 14, background: T.bg2 }}>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}><Label style={{ margin: 0, flex: 1 }}>Caption & hashtags</Label><Btn style={{ height: 28, fontSize: 12 }} onClick={() => { navigator.clipboard?.writeText(caption); ui.notify("Caption copied"); }}><Ico d={IC.copy} size={13} /> Copy</Btn></div>
+          <div style={{ fontSize: 13, color: T.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{caption}</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Storyboard({ preview, streaming, editable, onChange }) {
   const [edit, setEdit] = useState(false);
