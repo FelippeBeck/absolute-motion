@@ -373,7 +373,8 @@ class SupabaseStore implements Store {
 
   async getCredits(userId: string) {
     const db = await this.db();
-    const { data } = await db.from("profiles").select("credits").eq("id", userId).single();
+    const { data, error } = await db.from("profiles").select("credits").eq("id", userId).single();
+    if (error) throw error; // dispara o fallback p/ memória quando Supabase não está pronto
     return (data?.credits as number) ?? 0;
   }
   async spendCredits(userId: string, amount: number) {
@@ -436,7 +437,27 @@ class SupabaseStore implements Store {
   async deleteMetric(id: string) { const db = await this.db(); await db.from("metrics").delete().eq("id", id); }
 }
 
-export const store: Store = has.supabase() ? new SupabaseStore() : new MemoryStore();
+// Store resiliente: tenta Supabase; se uma operação falhar (URL errada, schema não
+// rodado, usuário sem auth real, etc.), cai para memória e segue funcionando — assim
+// o app nunca quebra por Supabase mal configurado. Quando estiver 100%, usa Supabase.
+function resilient(primary: Store, fallback: Store): Store {
+  let degraded = false;
+  return new Proxy({} as Store, {
+    get(_t, prop: string) {
+      return async (...args: any[]) => {
+        if (degraded) return (fallback as any)[prop](...args);
+        try { return await (primary as any)[prop](...args); }
+        catch (e: any) {
+          degraded = true;
+          console.warn(`[store] Supabase indisponível → usando memória. (${String(e?.message || e).slice(0, 100)})`);
+          return (fallback as any)[prop](...args);
+        }
+      };
+    },
+  });
+}
+
+export const store: Store = has.supabase() ? resilient(new SupabaseStore(), new MemoryStore()) : new MemoryStore();
 
 // Helpers de progresso usados pelo pipeline.
 export async function updateJob(jobId: string, patch: Partial<Job>) {

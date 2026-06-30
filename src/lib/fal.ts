@@ -32,6 +32,19 @@ const VIDEO_CONSTRAINTS: Record<string, ModelConstraints> = {
 
 function clamp(val: number, min: number, max: number) { return Math.max(min, Math.min(max, val)); }
 
+// Chamada ao fal com mensagem de erro amigável (ex.: 403 = sem saldo/billing).
+async function falSubscribe(endpoint: string, args: any): Promise<any> {
+  try {
+    return await fal.subscribe(endpoint, args);
+  } catch (e: any) {
+    const msg = String(e?.message || e?.body?.detail || e);
+    if (/forbidden|403|unauthor|payment|balance|insufficient|credit|exhaust/i.test(msg)) {
+      throw new Error("fal.ai recusou (403/Forbidden). Verifique a FAL_KEY e adicione saldo em fal.ai/dashboard/billing — o fal exige saldo pré-pago para gerar.");
+    }
+    throw new Error("fal.ai: " + msg.slice(0, 180));
+  }
+}
+
 export const IMAGE_ENDPOINTS: Record<string, { endpoint: string; usdPerImage: number }> = {
   "flux-dev":   { endpoint: "fal-ai/flux/dev",     usdPerImage: 0.025 },
   "flux-pro":   { endpoint: "fal-ai/flux-pro",     usdPerImage: 0.05 },
@@ -55,7 +68,7 @@ export async function generateImage(modelId: string, prompt: string, refImageUrl
   const m = IMAGE_ENDPOINTS[modelId] ?? IMAGE_ENDPOINTS["flux-dev"];
   const input: Record<string, unknown> = { prompt, image_size: "portrait_16_9", num_images: 1 };
   if (refImageUrl) input.image_url = refImageUrl; // referência p/ consistência (image-to-image)
-  const res: any = await fal.subscribe(m.endpoint, { input });
+  const res: any = await falSubscribe(m.endpoint, { input });
   return { url: res.data.images?.[0]?.url as string, cost: m.usdPerImage };
 }
 
@@ -89,6 +102,6 @@ export async function generateVideo(
   };
   if (opts.endImageUrl && c.supportsEndFrame) input.end_image_url = opts.endImageUrl;
 
-  const result: any = await fal.subscribe(m.endpoint, { input, logs: true });
+  const result: any = await falSubscribe(m.endpoint, { input, logs: true });
   return { url: result.data.video?.url as string, cost: m.usdPerSec * dur };
 }

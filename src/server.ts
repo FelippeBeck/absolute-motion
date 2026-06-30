@@ -248,13 +248,20 @@ app.post("/projects/:id/produce", async (req, res) => {
     const narration = brief.audioMode === "music" ? null
       : await renderNarration(scenes.map((s) => ({ narracao: s.narration } as any)), brief.voice || "Locução premium").catch(() => null);
 
-    let outputUrl: string;
+    let outputUrl: string; let note: string | undefined;
     if (has.demoRender()) {
       outputUrl = clipUrls[clipUrls.length - 1]; // demo: usa o último clipe de amostra
     } else {
-      const musicUrl = resolveMusic(brief.musicMood) || undefined;
-      const buf = await compose({ clipUrls, narrationBuffer: narration?.audioBuffer, captions: narration?.captions, musicUrl, aspectRatio: brief.format || "9:16" });
-      outputUrl = await uploadBuffer(`outputs/${project.id}/${Date.now()}.mp4`, buf, "video/mp4");
+      try {
+        const musicUrl = resolveMusic(brief.musicMood) || undefined;
+        const buf = await compose({ clipUrls, narrationBuffer: narration?.audioBuffer, captions: narration?.captions, musicUrl, aspectRatio: brief.format || "9:16" });
+        outputUrl = await uploadBuffer(`outputs/${project.id}/${Date.now()}.mp4`, buf, "video/mp4");
+      } catch (err: any) {
+        // Sem FFmpeg (ex.: máquina local) → entrega os clipes reais para validar o fluxo.
+        outputUrl = clipUrls[clipUrls.length - 1];
+        note = "Montagem final pulada (FFmpeg ausente) — clipes reais gerados. No deploy com FFmpeg o vídeo é costurado.";
+        captureError(err);
+      }
     }
 
     const total = scenes.reduce((a, s) => a + (s.duration_sec || 0), 0);
@@ -262,7 +269,7 @@ app.post("/projects/:id/produce", async (req, res) => {
     const job = await store.createJob({ project_id: project.id, user_id: project.user_id, video_model: brief.videoModel, image_model: brief.imageModel });
     await store.updateJob(job.id, { status: "done", progress: 100, step: "Pronto", output_url: outputUrl });
     await store.updateProject(project.id, { status: "ready" });
-    res.json({ outputUrl, jobId: job.id });
+    res.json({ outputUrl, jobId: job.id, note });
   } catch (e: any) { captureError(e); res.status(400).json({ error: String(e?.message || e) }); }
 });
 

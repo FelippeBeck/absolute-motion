@@ -8,11 +8,13 @@ let _db: SupabaseClient | null = null;
 
 function getDb(): SupabaseClient {
   if (_db) return _db;
-  const url = process.env.SUPABASE_URL;
+  let url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key || url.startsWith("https://xxxx")) {
     throw new Error("Supabase não configurado. Preencha SUPABASE_URL e SUPABASE_SERVICE_KEY no .env");
   }
+  // Tolera URL informada só como "ref" (sem https:// e .supabase.co).
+  if (!/^https?:\/\//i.test(url)) url = `https://${url.replace(/\/+$/, "")}.supabase.co`;
   _db = createClient(url, key, { auth: { persistSession: false } });
   return _db;
 }
