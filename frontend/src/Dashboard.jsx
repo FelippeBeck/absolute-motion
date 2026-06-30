@@ -247,9 +247,11 @@ export default function Dashboard() {
   const setLangPersist = (l) => { setLang(l); localStorage.setItem("am_lang", l); notify("Language: " + l); };
 
   const [pendingStyle, setPendingStyle] = useState(null);
+  const [pendingTemplate, setPendingTemplate] = useState(null);
   const t = makeT(lang);
   const startWithStyle = (s) => { setPendingStyle(s); setActiveView("studio"); notify("Style: " + s); };
-  const ctx = { health, me, reloadMe, notify, favs, toggleFav, lang, setLang: setLangPersist, openModal: setModal, folders, addFolder, removeFolder, setActiveView, t, pendingStyle, clearPendingStyle: () => setPendingStyle(null), startWithStyle };
+  const startWithTemplate = (tpl) => { setPendingTemplate(tpl); setActiveView("studio"); notify("Template: " + tpl.name); };
+  const ctx = { health, me, reloadMe, notify, favs, toggleFav, lang, setLang: setLangPersist, openModal: setModal, folders, addFolder, removeFolder, setActiveView, t, pendingStyle, clearPendingStyle: () => setPendingStyle(null), startWithStyle, pendingTemplate, clearPendingTemplate: () => setPendingTemplate(null), startWithTemplate };
   const NAV = [["explore", "Explore", IC.sparkles, "Explore"], ["studio", "Animation Studio", IC.film, "Studio"], ["projects", "Projects", IC.folder, "Projects"], ["queue", "Render Queue", IC.layer, "Queue"], ["assets", "Assets Library", IC.image, "Assets"], ["tools", "Tools", IC.wand, "Tools"]];
   const TITLES = { explore: "Explore", studio: "AI Animation Engine", projects: "Projects", queue: "Render Queue", assets: "Assets Library", tools: "Tools", team: "Team", settings: "Settings & Integrations" };
 
@@ -405,11 +407,15 @@ function NotificationsBell() {
 // ═══════════════════════════════════════════════════════════════
 // VIEW: Explore (Animation OS) — tendências de estilos que convertem
 // ═══════════════════════════════════════════════════════════════
-const STYLE_VIEWS = { "Claymation": "451M", "Pixar 3D style": "388M", "Anime": "540M", "Paper Cutout": "92M", "LEGO": "210M", "Wes Anderson": "167M", "Retro Cartoon": "130M", "Surreal 3D": "305M", "Miniature": "78M", "Realistic / Photographic": "96M", "Motion Graphics": "142M" };
-const TREND_VIEWS = ["9.4M", "12.7M", "4.0M", "21.1M", "6.8M", "3.3M", "18M", "12M"];
-const SCAN_FEED = ["@petlovers.br", "@techgadgetz", "@glow.skincare", "@fitfuel", "@homehacks", "@toy.world", "@coffee.daily", "@ecomgrowth"];
+// "Best for" honesto por estilo (ajuda o usuário a escolher — sem números falsos).
+const STYLE_BESTFOR = {
+  "Claymation": "Warm, handcrafted, scroll-stopping", "Pixar 3D style": "Premium, friendly, broad appeal", "Anime": "High energy, younger audiences",
+  "Paper Cutout": "Cozy, indie, storytelling", "LEGO": "Playful, fun, family products", "Wes Anderson": "Elegant, quirky, lifestyle brands",
+  "Retro Cartoon": "Nostalgic, bold, meme-ready", "Surreal 3D": "Abstract, eye-catching hooks", "Miniature": "Cute, detailed, satisfying",
+  "Realistic / Photographic": "Trust, realism, demos", "Motion Graphics": "Clean, informative, explainers",
+};
 
-// Número que "conta" de 0 até o alvo (easing) — dá vida às estatísticas.
+// Número que "conta" de 0 até o alvo (easing) — dá vida às estatísticas REAIS.
 function CountUp({ to, fmt, dur = 1000 }) {
   const [v, setV] = useState(0);
   useEffect(() => {
@@ -422,79 +428,107 @@ function CountUp({ to, fmt, dur = 1000 }) {
 
 function ExploreView() {
   const ui = useUI();
-  const [ads, setAds] = useState(0);
-  const [si, setSi] = useState(0);
-  useEffect(() => { api("/jobs").then(r => r.json()).then(j => setAds((j || []).filter(x => x.status === "done").length)).catch(() => {}); }, []);
-  useEffect(() => { const t = setInterval(() => setSi(i => (i + 1) % SCAN_FEED.length), 1800); return () => clearInterval(t); }, []);
+  const [jobs, setJobs] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const load = () => {
+    api("/jobs").then(r => r.json()).then(j => setJobs(j || [])).catch(() => setJobs([]));
+    api("/projects").then(r => r.json()).then(p => setProjects(p || [])).catch(() => {});
+  };
+  useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t); }, []);
+
+  const done = (jobs || []).filter(j => j.status === "done" && j.outputUrl);
+  const credits = ui.me?.credits ?? 0;
+  const recent = done.slice(0, 8);
+  const lowCredits = credits > 0 && credits < 30;
   const stats = [
-    { n: 6078, fmt: (v) => Math.round(v).toLocaleString("en-US"), label: "Ads analyzed" },
-    { n: 454.2, fmt: (v) => v.toFixed(1) + "M", label: "Views scanned" },
-    { n: 1669, fmt: (v) => Math.round(v).toLocaleString("en-US"), label: "Winning patterns" },
-    { n: ads, fmt: (v) => String(Math.round(v)), label: "Animation ads generated" },
+    { n: done.length, fmt: (v) => String(Math.round(v)), label: "Videos created", icon: IC.film },
+    { n: projects.length, fmt: (v) => String(Math.round(v)), label: "Projects", icon: IC.folder },
+    { n: credits, fmt: (v) => String(Math.round(v)), label: "Credits left", icon: IC.bolt },
   ];
-  const tiles = STYLES.slice(0, 8);
+  const Section = ({ title, hint, action }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "28px 0 14px" }}>
+      <div><div style={{ fontSize: 16, fontWeight: 800, color: T.ink }}>{title}</div>{hint && <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>{hint}</div>}</div>
+      {action && <div style={{ marginLeft: "auto" }}>{action}</div>}
+    </div>
+  );
 
   return (
     <div style={{ flex: 1, padding: 32, overflowY: "auto", zIndex: 1 }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1160, margin: "0 auto" }}>
         {/* Hero */}
-        <div style={{ border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 28, marginBottom: 20, position: "relative", overflow: "hidden", background: T.bg }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, letterSpacing: 2, textTransform: "uppercase" }}>AI · Creative · Ad Agent</div>
-          <div style={{ fontSize: 34, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em", margin: "6px 0 8px" }}>Animation <span style={{ fontStyle: "italic", fontWeight: 700 }}>OS</span></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.sub }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.ink }} className="blink" /> Scanning viral animation patterns on TikTok · <span key={si} className="fade" style={{ fontWeight: 700, color: T.ink }}>{SCAN_FEED[si]}</span>
+        <div style={{ border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 32, position: "relative", overflow: "hidden", background: T.bg }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}><Logo size={34} /><span style={{ fontWeight: 800, fontSize: 15, color: T.ink }}>Absolute Motion</span></div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em", maxWidth: 560, lineHeight: 1.15 }}>Create your next animated ad in minutes</div>
+          <div style={{ fontSize: 14, color: T.sub, marginTop: 10, maxWidth: 560 }}>Pick a style, drop your product photo, and the engine writes the script, renders every scene, and stitches a finished ad — ready for Meta, TikTok, Reels & Shorts.</div>
+          <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+            <Btn primary onClick={() => ui.setActiveView("studio")} style={{ height: 44, padding: "0 20px" }}><Ico d={IC.sparkles} size={16} color={T.bg} /> New ad</Btn>
+            <Btn onClick={() => ui.openModal("quickstart")} style={{ height: 44 }}><Ico d={IC.bolt} size={15} /> Quick start</Btn>
           </div>
-          <div style={{ position: "absolute", top: 24, right: 24 }}><Btn primary onClick={() => ui.setActiveView("studio")}><Ico d={IC.play} size={14} color={T.bg} /> Run automation</Btn></div>
         </div>
 
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
+        {/* Stats reais */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 16 }}>
           {stats.map((s) => (
-            <div key={s.label} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: 20, background: T.bg }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em" }}><CountUp to={s.n} fmt={s.fmt} /></div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>{s.label}</div>
+            <div key={s.label} style={{ border: `1px solid ${T.line}`, borderRadius: 14, padding: 20, background: T.bg, display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: T.bg3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={s.icon} size={20} color={T.ink} /></div>
+              <div><div style={{ fontSize: 26, fontWeight: 800, color: T.ink, letterSpacing: "-0.02em" }}><CountUp to={s.n} fmt={s.fmt} /></div><div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 2 }}>{s.label}</div></div>
             </div>
           ))}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 20, alignItems: "start" }}>
-          {/* Top styles */}
-          <div style={{ border: `1px solid ${T.lineDark}`, borderRadius: 16, overflow: "hidden", background: T.bg }}>
-            <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>Top performing styles</div>
-              <Badge color={T.ink} style={{ borderColor: T.lineDark, fontWeight: 700 }}>Live</Badge>
-            </div>
-            <div style={{ maxHeight: 460, overflowY: "auto" }}>
-              {STYLES.map(s => (
-                <div key={s} onClick={() => ui.startWithStyle(s)} className="nav-item" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", cursor: "pointer", borderBottom: `1px solid ${T.line}` }} onMouseOver={e => e.currentTarget.style.background = T.bg2} onMouseOut={e => e.currentTarget.style.background = "transparent"}>
-                  <div style={{ width: 34, height: 34, borderRadius: "50%", background: T.bg3, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico d={IC.sparkles} size={16} color={T.sub} /></div>
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{s}</div><div style={{ fontSize: 11, color: T.sub }}>{STYLE_META[s]}</div></div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{STYLE_VIEWS[s]}</div>
-                </div>
-              ))}
-            </div>
+        {lowCredits && (
+          <div style={{ marginTop: 16, padding: 16, border: `1px solid ${T.lineDark}`, borderRadius: 12, background: T.bg2, display: "flex", alignItems: "center", gap: 14 }}>
+            <Ico d={IC.bolt} size={20} color={T.ink} />
+            <div style={{ flex: 1, fontSize: 13, color: T.text }}><strong>You're low on credits ({credits} left).</strong> Top up to keep rendering ads.</div>
+            <Btn primary onClick={() => ui.openModal("upgrade")}>Upgrade</Btn>
           </div>
+        )}
 
-          {/* Trending grid */}
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-              {tiles.map((s, i) => (
-                <div key={s} onClick={() => ui.startWithStyle(s)} className="card-hover" style={{ border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", cursor: "pointer", background: T.bg }}>
-                  <div style={{ aspectRatio: "1/1", background: T.bg3, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                    <Ico d={IC.film} size={28} color={T.muted} />
-                    <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.6)", color: "#fff", padding: "2px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>{TREND_VIEWS[i % TREND_VIEWS.length]}</div>
-                  </div>
-                  <div style={{ padding: "10px 12px" }}><div style={{ fontSize: 12, fontWeight: 700, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s}</div><div style={{ fontSize: 10, color: T.sub, textTransform: "uppercase", letterSpacing: 0.5 }}>{STYLE_META[s]}</div></div>
-                </div>
-              ))}
+        {/* Estilos */}
+        <Section title="Start with a style" hint="The look is locked across every scene. Click to open the studio." />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+          {STYLES.map(s => (
+            <div key={s} onClick={() => ui.startWithStyle(s)} className="card-hover" style={{ border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", cursor: "pointer", background: T.bg }}>
+              <div style={{ aspectRatio: "16/10", background: T.bg3, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico d={IC.sparkles} size={26} color={T.sub} /></div>
+              <div style={{ padding: "12px 14px" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s}</div>
+                <div style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{STYLE_BESTFOR[s] || STYLE_META[s]}</div>
+              </div>
             </div>
-            <div style={{ marginTop: 16, padding: 18, border: `1px dashed ${T.lineDark}`, borderRadius: 12, display: "flex", alignItems: "center", gap: 14 }}>
-              <Ico d={IC.sparkles} size={20} color={T.sub} />
-              <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>Turn any product into a fully animated ad</div><div style={{ fontSize: 12, color: T.sub }}>Photo + landing page → script, storyboard, render, voiceover, music & captions — automatically.</div></div>
-              <Btn primary onClick={() => ui.setActiveView("studio")}><Ico d={IC.play} size={14} color={T.bg} /> Create now</Btn>
-            </div>
-          </div>
+          ))}
         </div>
+
+        {/* Templates */}
+        <Section title="Or start from a template" hint="Proven ad recipes — prefills the brief for you." />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+          {TEMPLATES.map(tpl => (
+            <div key={tpl.id} onClick={() => ui.startWithTemplate(tpl)} className="card-hover" style={{ border: `1px solid ${T.lineDark}`, borderRadius: 12, padding: 18, cursor: "pointer", background: T.bg }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><Ico d={IC.film} size={18} color={T.ink} /><div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{tpl.name}</div></div>
+              <div style={{ fontSize: 12, color: T.sub, lineHeight: 1.5, marginBottom: 12 }}>{tpl.desc}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}><Badge>{tpl.values.style}</Badge><Badge>{tpl.values.duration}s</Badge><Badge>{tpl.values.format}</Badge></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Recentes (real) */}
+        <Section title="Your recent ads" hint={done.length ? "Pick up where you left off." : undefined} action={done.length > 0 && <Btn onClick={() => ui.setActiveView("assets")} style={{ height: 32, fontSize: 12 }}>View all</Btn>} />
+        {jobs === null ? <Spinner /> : recent.length === 0 ? (
+          <div style={{ border: `1px dashed ${T.lineDark}`, borderRadius: 14, padding: 40, textAlign: "center", color: T.sub }}>
+            <Ico d={IC.film} size={28} color={T.muted} style={{ marginBottom: 10 }} />
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 4 }}>No ads yet</div>
+            <div style={{ fontSize: 13, marginBottom: 16 }}>Create your first animated ad and it'll show up here.</div>
+            <Btn primary onClick={() => ui.setActiveView("studio")}><Ico d={IC.sparkles} size={15} color={T.bg} /> Create your first ad</Btn>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+            {recent.map(j => (
+              <a key={j.id} href={j.outputUrl} target="_blank" rel="noreferrer" className="card-hover" style={{ textDecoration: "none", color: "inherit", border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", background: T.bg }}>
+                <video src={`${j.outputUrl}#t=0.5`} muted preload="metadata" style={{ width: "100%", height: 150, objectFit: "cover", background: T.bg3 }} />
+                <div style={{ padding: "10px 12px" }}><div style={{ fontSize: 12, fontWeight: 700, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{j.project}</div><div style={{ fontSize: 10, color: T.sub, textTransform: "uppercase", letterSpacing: 0.5 }}>{j.model} • {timeAgo(j.createdAt)}</div></div>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -589,8 +623,9 @@ function AnimationEngine() {
     return () => clearInterval(pollRef.current);
   }, [stage, ids.jobId]);
 
-  // Estilo vindo da tela Explore
+  // Estilo / template vindos da tela Explore
   useEffect(() => { if (ui.pendingStyle) { setF(p => ({ ...p, style: ui.pendingStyle })); ui.clearPendingStyle?.(); } }, [ui.pendingStyle]);
+  useEffect(() => { if (ui.pendingTemplate) { setF(p => ({ ...p, ...ui.pendingTemplate.values })); ui.clearPendingTemplate?.(); } }, [ui.pendingTemplate]);
 
   const regenerate = async (sceneId) => {
     setRegening(sceneId);
