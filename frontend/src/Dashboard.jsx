@@ -158,7 +158,7 @@ const TEMPLATES = [
   { id: "reveal", name: "Product Reveal", desc: "Dramatic hero reveal of the product.", values: { style: "3D Pixar style", tone: "Inspiring", objective: "Brand awareness", duration: 15, format: "9:16" } },
   { id: "problem", name: "Problem → Solution", desc: "Show the pain, then the product as the fix.", values: { style: "Motion Graphics", tone: "Trustworthy", objective: "Conversion / direct sales", duration: 30, format: "9:16" } },
   { id: "features", name: "Feature Highlights", desc: "Fast-cut tour of the top benefits.", values: { style: "3D Pixar style", tone: "Fun", objective: "Product launch", duration: 30, format: "9:16" } },
-  { id: "hype", name: "UGC-style Hype", desc: "Urgent, punchy, social-first energy.", values: { style: "Realistic / Photographic", tone: "Urgent", objective: "Traffic / clicks", duration: 15, format: "9:16" } },
+  { id: "hype", name: "Hype / Urgency", desc: "Fast, punchy, high-energy for social feeds.", values: { style: "Anime", tone: "Urgent", objective: "Traffic / clicks", duration: 15, format: "9:16" } },
   { id: "story", name: "Brand Story", desc: "Emotional narrative for awareness.", values: { style: "Motion Graphics", tone: "Inspiring", objective: "Brand awareness", duration: 45, format: "16:9" } },
   { id: "promo", name: "Sale / Promo", desc: "Discount-driven, high urgency.", values: { style: "3D Pixar style", tone: "Urgent", objective: "Conversion / direct sales", duration: 15, format: "9:16" } },
 ];

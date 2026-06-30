@@ -242,7 +242,7 @@ function ConceptResult({ c }) {
 // ── wedge / por que animação ──────────────────────────────────
 function Wedge() {
   const items = [
-    { t: "No uncanny valley", d: "Cartoon frames read as design, not as a not-quite-human face. The thing that makes UGC avatars flop just… isn't there." },
+    { t: "No uncanny valley", d: "Cartoon frames read as design, not as a not-quite-human face. The thing that makes fake-avatar ads flop just… isn't there." },
     { t: "Global on day one", d: "Native multilingual voiceover and captions. One product, ten markets, same afternoon." },
     { t: "Built for ad buyers", d: "Multiple formats, multiple hooks per product. Made to test creative, not to win a tech demo." },
   ];
@@ -251,7 +251,7 @@ function Wedge() {
       <Wrap>
         <div style={{ maxWidth: 620, marginBottom: 44 }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: O, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>The wedge</div>
-          <h2 className="am-h" style={{ fontSize: 40, margin: 0 }}>UGC tools went all-in on fake people. <span style={{ color: O }}>We went all-in on animation.</span></h2>
+          <h2 className="am-h" style={{ fontSize: 40, margin: 0 }}>Avatar tools went all-in on fake people. <span style={{ color: O }}>We went all-in on animation.</span></h2>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))", gap: 1, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden" }}>
           {items.map((it, i) => (
