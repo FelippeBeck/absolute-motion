@@ -1,0 +1,25 @@
+# ── Segredos (NUNCA versionar) ──
+.env
+.env.local
+.env.*.local
+
+# ── Dependências e builds ──
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+*.tsbuildinfo
+
+# ── Sistema / editor ──
+.DS_Store
+**/.DS_Store
+*.log
+npm-debug.log*
+
+# ── Lixo / backups antigos deste diretório ──
+*.zip
+/absolute-motion-backend/
+/absolute-motion-backend 2/
+/absolute-motion.jsx
+/absolute-motion_1.jsx
+/absolute-motion-landing.jsx
