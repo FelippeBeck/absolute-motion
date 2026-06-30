@@ -1,13 +1,15 @@
 // Narração via ElevenLabs, com timestamps por caractere para sincronizar legenda.
+import { has } from "./mode.js";
+
 const BASE = "https://api.elevenlabs.io/v1";
 
-// Mapeie aqui os voiceIds reais da sua conta ElevenLabs.
+// Vozes públicas do ElevenLabs como fallback. Customize no .env (VOICE_ID_*).
 const VOICE_IDS: Record<string, string> = {
-  "Energética masculina": "TODO_VOICE_ID",
-  "Energética feminina":  "TODO_VOICE_ID",
-  "Calma masculina":      "TODO_VOICE_ID",
-  "Calma feminina":       "TODO_VOICE_ID",
-  "Locução premium":      "TODO_VOICE_ID",
+  "Energética masculina": process.env.VOICE_ID_ENERGETICA_MASC || "pNInz6obpgDQGcFmaJgB",  // Adam
+  "Energética feminina":  process.env.VOICE_ID_ENERGETICA_FEM  || "EXAVITQu4vr4xnSDxMaL",  // Bella
+  "Calma masculina":      process.env.VOICE_ID_CALMA_MASC      || "ErXwobaYiN019PkySvjV",  // Antoni
+  "Calma feminina":       process.env.VOICE_ID_CALMA_FEM       || "MF3mGyEYCl7XYWbV9V6O",  // Elli
+  "Locução premium":      process.env.VOICE_ID_PREMIUM         || "21m00Tcm4TlvDq8ikWAM",  // Rachel
 };
 
 export type NarrationResult = {
@@ -16,6 +18,20 @@ export type NarrationResult = {
 };
 
 export async function synthesize(text: string, voiceLabel: string): Promise<NarrationResult> {
+  // Sem chave → retorna silêncio + alinhamento fake (demo mode)
+  if (!has.elevenlabs()) {
+    const chars = text.split("");
+    const step = 0.06;
+    return {
+      audioBase64: "",
+      alignment: {
+        chars,
+        startsSec: chars.map((_, i) => i * step),
+        endsSec: chars.map((_, i) => (i + 1) * step),
+      },
+    };
+  }
+
   const voiceId = VOICE_IDS[voiceLabel] ?? VOICE_IDS["Locução premium"];
   // endpoint with-timestamps devolve áudio + alinhamento por caractere
   const res = await fetch(`${BASE}/text-to-speech/${voiceId}/with-timestamps`, {

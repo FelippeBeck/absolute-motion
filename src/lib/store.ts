@@ -64,12 +64,12 @@ export interface Store {
   createProject(p: Partial<Project>): Promise<Project>;
   getProject(id: string): Promise<Project | null>;
   updateProject(id: string, patch: Partial<Project>): Promise<void>;
-  listProjects(limit?: number): Promise<Project[]>;
+  listProjects(userId?: string, limit?: number): Promise<Project[]>;
 
   createJob(j: Partial<Job>): Promise<Job>;
   getJob(id: string): Promise<Job | null>;
   updateJob(id: string, patch: Partial<Job>): Promise<void>;
-  listJobs(limit?: number): Promise<Job[]>;
+  listJobs(userId?: string, limit?: number): Promise<Job[]>;
 
   replaceScenes(projectId: string, scenes: Partial<SceneRow>[]): Promise<void>;
   getScenes(projectId: string): Promise<SceneRow[]>;
@@ -81,6 +81,7 @@ export interface Store {
 
   getCredits(userId: string): Promise<number>;
   spendCredits(userId: string, amount: number): Promise<number>;
+  grantCredits(userId: string, amount: number): Promise<number>;
 
   listFolders(userId: string): Promise<Folder[]>;
   createFolder(p: { user_id: string; name: string }): Promise<Folder>;
@@ -132,8 +133,9 @@ class MemoryStore implements Store {
     const cur = this.projects.get(id);
     if (cur) this.projects.set(id, { ...cur, ...patch, updated_at: now() });
   }
-  async listProjects(limit = 40) {
+  async listProjects(userId?: string, limit = 40) {
     return [...this.projects.values()]
+      .filter((p) => !userId || p.user_id === userId)
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, limit);
   }
@@ -164,8 +166,9 @@ class MemoryStore implements Store {
     const cur = this.jobs.get(id);
     if (cur) this.jobs.set(id, { ...cur, ...patch, updated_at: now() });
   }
-  async listJobs(limit = 20) {
+  async listJobs(userId?: string, limit = 20) {
     return [...this.jobs.values()]
+      .filter((j) => !userId || j.user_id === userId)
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, limit);
   }
@@ -221,6 +224,12 @@ class MemoryStore implements Store {
   async spendCredits(userId: string, amount: number) {
     const cur = await this.getCredits(userId);
     const next = Math.max(0, cur - Math.max(0, Math.round(amount)));
+    this.credits.set(userId, next);
+    return next;
+  }
+  async grantCredits(userId: string, amount: number) {
+    const cur = await this.getCredits(userId);
+    const next = cur + Math.max(0, Math.round(amount));
     this.credits.set(userId, next);
     return next;
   }
@@ -293,9 +302,11 @@ class SupabaseStore implements Store {
     const db = await this.db();
     await db.from("projects").update({ ...patch, updated_at: now() }).eq("id", id);
   }
-  async listProjects(limit = 40) {
+  async listProjects(userId?: string, limit = 40) {
     const db = await this.db();
-    const { data } = await db.from("projects").select("*").order("created_at", { ascending: false }).limit(limit);
+    let q = db.from("projects").select("*").order("created_at", { ascending: false }).limit(limit);
+    if (userId) q = q.eq("user_id", userId);
+    const { data } = await q;
     return (data as Project[]) ?? [];
   }
 
@@ -323,9 +334,11 @@ class SupabaseStore implements Store {
     const db = await this.db();
     await db.from("jobs").update({ ...patch, updated_at: now() }).eq("id", id);
   }
-  async listJobs(limit = 20) {
+  async listJobs(userId?: string, limit = 20) {
     const db = await this.db();
-    const { data } = await db.from("jobs").select("*").order("created_at", { ascending: false }).limit(limit);
+    let q = db.from("jobs").select("*").order("created_at", { ascending: false }).limit(limit);
+    if (userId) q = q.eq("user_id", userId);
+    const { data } = await q;
     return (data as Job[]) ?? [];
   }
 
@@ -367,6 +380,13 @@ class SupabaseStore implements Store {
     const db = await this.db();
     const cur = await this.getCredits(userId);
     const next = Math.max(0, cur - Math.max(0, Math.round(amount)));
+    await db.from("profiles").update({ credits: next }).eq("id", userId);
+    return next;
+  }
+  async grantCredits(userId: string, amount: number) {
+    const db = await this.db();
+    const cur = await this.getCredits(userId);
+    const next = cur + Math.max(0, Math.round(amount));
     await db.from("profiles").update({ credits: next }).eq("id", userId);
     return next;
   }

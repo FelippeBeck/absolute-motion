@@ -533,7 +533,7 @@ function ExploreView() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// VIEW 1: Animation Engine
+// VIEW 1: Animation Engine — 8-Step Pipeline
 // ═══════════════════════════════════════════════════════════════
 function AnimationEngine() {
   const ui = useUI();
@@ -544,21 +544,26 @@ function AnimationEngine() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showStyles, setShowStyles] = useState(false);
   const endRef = useRef(null);
-  const [stage, setStage] = useState("idle");   // idle|streaming|preview|rendering|done|error
+  // 8 stages: idle | analysis | concept | storyboard | keyframes | animation | production | publish | error
+  const [stage, setStage] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [preview, setPreview] = useState(null);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [conceptData, setConceptData] = useState(null);
   const [ids, setIds] = useState({ projectId: null, jobId: null });
   const [job, setJob] = useState(null);
   const [scenes, setScenes] = useState([]);
   const [regening, setRegening] = useState(null);
-  const fileRef = useRef(null); const pollRef = useRef(null); const videoRef = useRef(null);
+  const [working, setWorking] = useState(false);
+  const fileRef = useRef(null); const videoRef = useRef(null);
   const update = (k, v) => setF(p => ({ ...p, [k]: v }));
   const onPickFile = async (file) => { if (!file) return; if (file.size > 10 * 1024 * 1024) { alert("Image over 10MB."); return; } setPhoto(await fileToData(file)); };
 
-  // Storyboard com streaming (cenas chegando uma a uma)
+  // Creative engine com streaming (8 etapas visíveis)
   const generateStoryboard = async () => {
     if (!f.product.trim()) { alert("Enter the product name."); return; }
-    setStage("streaming"); setErrorMsg(""); setPreview({ title: f.product, hook: "", cta: "", scenes: [], done: false });
+    setStage("analysis"); setErrorMsg(""); setAnalysisData(null); setConceptData(null);
+    setPreview({ title: f.product, hook: "", cta: "", scenes: [], done: false });
     const body = { userId: "local-user", ...f }; if (photo) body.photo = { mediaType: photo.mediaType, base64: photo.base64 };
     try {
       const res = await api("/preview/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -571,75 +576,99 @@ function AnimationEngine() {
         for (const p of parts) {
           const line = p.split("\n").find(l => l.startsWith("data: ")); if (!line) continue;
           const ev = JSON.parse(line.slice(6));
-          if (ev.type === "analysis") setPreview(s => ({ ...s, traits: ev.analysis.traits }));
-          else if (ev.type === "concept") setPreview(s => ({ ...s, title: ev.concept.titulo, hook: ev.concept.gancho, cta: ev.concept.cta }));
-          else if (ev.type === "scene") setPreview(s => ({ ...s, scenes: [...s.scenes, ev.scene] }));
+          if (ev.type === "analysis") { setAnalysisData(ev.analysis); setStage("analysis"); setPreview(s => ({ ...s, traits: ev.analysis.traits })); }
+          else if (ev.type === "concept") { setConceptData(ev.concept); setStage("concept"); setPreview(s => ({ ...s, title: ev.concept.titulo, hook: ev.concept.gancho, cta: ev.concept.cta })); }
+          else if (ev.type === "scene") { setStage("storyboard"); setPreview(s => ({ ...s, scenes: [...s.scenes, ev.scene] })); }
           else if (ev.type === "audio") setPreview(s => ({ ...s, audio: ev.audio }));
           else if (ev.type === "done") setPreview(s => ({ ...s, done: true }));
           else if (ev.type === "error") throw new Error(ev.error);
         }
       }
-      setStage("preview");
+      setStage("storyboard");
     } catch (e) {
       // fallback não-streaming
       try {
         const res = await api("/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
         const d = await res.json();
+        setAnalysisData(d.analysis || { resumo: f.product, traits: ["Style-locked", "Consistent palette", "Premium lighting"], publico: f.audience || "To be defined", angulo: "Strong visual hook" });
+        setConceptData(d.concept || { titulo: f.product, bigIdea: "", gancho: "", cta: "", tomNotas: "" });
         setPreview({ title: d.concept?.titulo || f.product, hook: d.concept?.gancho || "", cta: d.concept?.cta || "", audio: d.audio, done: true, scenes: (d.scenes || []) });
-        setStage("preview");
+        setStage("storyboard");
       } catch (e2) { setErrorMsg(e2.message); setStage("error"); }
     }
   };
 
-  const renderVideo = async () => {
-    setStage("rendering"); setErrorMsg(""); setScenes([]); setJob({ status: "queued", progress: 0, step: "Queued…" });
+  const uploadPhoto = async (ph) => { if (!ph) return undefined; const r = await api("/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mediaType: ph.mediaType, base64: ph.base64, name: ph.name }) }); return r.ok ? (await r.json()).url : undefined; };
+
+  // ETAPA → IMAGENS: cria rascunho com o storyboard aprovado e gera os keyframes.
+  const generateImages = async () => {
+    setStage("keyframes"); setWorking(true); setErrorMsg(""); setScenes([]);
     try {
-      const up = async (ph) => { if (!ph) return undefined; const r = await api("/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mediaType: ph.mediaType, base64: ph.base64, name: ph.name }) }); return r.ok ? (await r.json()).url : undefined; };
-      const productRefUrl = await up(photo);
-      const endFrameUrl = await up(endFrame);
-      // renderiza o storyboard JÁ aprovado/editado (não regenera com o Claude)
+      const productRefUrl = await uploadPhoto(photo);
+      const endFrameUrl = await uploadPhoto(endFrame);
       const approvedScenes = (preview?.scenes || []).map(s => ({ n: s.n, dur: s.dur, keyframe: s.keyframe, motion: s.motion, narracao: s.narracao || "", legenda: s.legenda || "" }));
-      const concept = preview ? { titulo: preview.title, gancho: preview.hook, cta: preview.cta } : undefined;
-      const res = await api("/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: "local-user", ...f, productRefUrl, endFrameUrl, scenes: approvedScenes.length ? approvedScenes : undefined, concept }) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
-      const { projectId, jobId } = await res.json(); setIds({ projectId, jobId }); ui.reloadMe();
+      const concept = { titulo: preview?.title, gancho: preview?.hook, cta: preview?.cta };
+      const draft = await api("/projects/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: "local-user", ...f, productRefUrl, endFrameUrl, scenes: approvedScenes, concept }) }).then(r => r.json());
+      if (!draft.projectId) throw new Error(draft.error || "draft failed");
+      setIds({ projectId: draft.projectId, jobId: null }); setScenes(draft.scenes || []);
+      const kf = await api(`/projects/${draft.projectId}/keyframes`, { method: "POST" }).then(r => r.json());
+      setScenes(kf.scenes || []); ui.reloadMe();
     } catch (e) { setErrorMsg(e.message); setStage("error"); }
+    setWorking(false);
   };
 
-  useEffect(() => {
-    if (stage !== "rendering" || !ids.jobId) return;
-    const tick = async () => {
-      try {
-        const [j, p] = await Promise.all([api(`/jobs/${ids.jobId}`).then(r => r.json()), api(`/projects/${ids.projectId}`).then(r => r.json())]);
-        setJob(j); setScenes(p.scenes || []);
-        if (j.status === "done") { clearInterval(pollRef.current); setStage("done"); ui.reloadMe(); }
-        if (j.status === "error") { clearInterval(pollRef.current); setErrorMsg(j.error || "Render failed"); setStage("error"); }
-      } catch {}
-    };
-    tick(); pollRef.current = setInterval(tick, 2500);
-    return () => clearInterval(pollRef.current);
-  }, [stage, ids.jobId]);
+  // ETAPA → VÍDEO: anima os keyframes aprovados em clipes.
+  const animateScenes = async () => {
+    setStage("animation"); setWorking(true); setErrorMsg("");
+    try { const r = await api(`/projects/${ids.projectId}/animate`, { method: "POST" }).then(r => r.json()); if (r.error) throw new Error(r.error); setScenes(r.scenes || []); }
+    catch (e) { setErrorMsg(e.message); setStage("error"); }
+    setWorking(false);
+  };
+
+  // ETAPA → PRODUÇÃO: narração + música + legendas + montagem → vídeo final.
+  const produce = async () => {
+    setStage("production"); setWorking(true); setErrorMsg("");
+    try {
+      const r = await api(`/projects/${ids.projectId}/produce`, { method: "POST" }).then(r => r.json());
+      if (!r.outputUrl) throw new Error(r.error || "produce failed");
+      setJob({ outputUrl: r.outputUrl, cost: 0, status: "done" }); setIds(s => ({ ...s, jobId: r.jobId }));
+      setStage("publish"); ui.reloadMe();
+    } catch (e) { setErrorMsg(e.message); setStage("error"); }
+    setWorking(false);
+  };
+
+  const updateSceneInState = (sc) => setScenes(list => list.map(x => x.id === sc.id ? sc : x));
 
   // Estilo / template vindos da tela Explore
   useEffect(() => { if (ui.pendingStyle) { setF(p => ({ ...p, style: ui.pendingStyle })); ui.clearPendingStyle?.(); } }, [ui.pendingStyle]);
   useEffect(() => { if (ui.pendingTemplate) { setF(p => ({ ...p, ...ui.pendingTemplate.values })); ui.clearPendingTemplate?.(); } }, [ui.pendingTemplate]);
 
-  const regenerate = async (sceneId) => {
+  // Regerar a IMAGEM de uma cena
+  const regenKeyframe = async (sceneId) => {
     setRegening(sceneId);
-    try { await api(`/scenes/${sceneId}/regenerate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ videoModel: f.videoModel, imageModel: f.imageModel, format: f.format, lang: f.lang, style: f.style, brandContext: f.brandContext }) }); const p = await api(`/projects/${ids.projectId}`).then(r => r.json()); setScenes(p.scenes || []); ui.notify("Scene regenerated"); }
+    try { const sc = await api(`/scenes/${sceneId}/keyframe`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then(r => r.json()); if (sc?.id) updateSceneInState(sc); ui.notify("Image regenerated"); }
+    catch { ui.notify("Failed to regenerate"); }
+    setRegening(null);
+  };
+  // Reanimar o CLIPE de uma cena
+  const regenClip = async (sceneId) => {
+    setRegening(sceneId);
+    try { const sc = await api(`/scenes/${sceneId}/clip`, { method: "POST" }).then(r => r.json()); if (sc?.id) updateSceneInState(sc); ui.notify("Clip regenerated"); }
     catch { ui.notify("Failed to regenerate"); }
     setRegening(null);
   };
 
-  const busy = stage === "streaming" || stage === "rendering";
+  const isStreaming = stage === "analysis" || stage === "concept" || stage === "storyboard";
+  const busy = isStreaming || working;
+  const canRender = stage === "storyboard" && preview?.done;
 
   return (
     <div style={{ display: "flex", flex: 1, width: "100%", zIndex: 1 }}>
-      {/* Left panel */}
+      {/* Left panel — Brief (Step 1) */}
       <div style={{ width: 420, background: T.bg, borderRight: `1px solid ${T.line}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: 32, flex: 1, overflowY: "auto" }}>
-          <div style={{ marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: T.ink, marginBottom: 4 }}>{ui.t("Parameters")}</div><div style={{ fontSize: 12, color: T.sub }}>Product photo + brief → the engine builds your ad.</div></div>
+          <div style={{ marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: T.ink, marginBottom: 4 }}>① {ui.t("Parameters")}</div><div style={{ fontSize: 12, color: T.sub }}>Product photo + brief → the engine builds your ad.</div></div>
 
           <Btn block onClick={() => setShowTemplates(true)} style={{ marginBottom: 20, height: 40 }}><Ico d={IC.grid} size={15} /> {ui.t("Start from a template")}</Btn>
 
@@ -698,36 +727,149 @@ function AnimationEngine() {
           </div>
         </div>
         <div style={{ padding: "20px 32px", borderTop: `1px solid ${T.line}`, background: T.bg, display: "grid", gap: 10 }}>
-          <Btn primary block onClick={generateStoryboard} disabled={busy} style={{ height: 48, fontSize: 14 }}>{stage === "streaming" ? <><Spinner light /> Generating…</> : <><Ico d={IC.sparkles} size={16} color={T.bg} /> {ui.t("Generate Storyboard")}</>}</Btn>
-          {(stage === "preview" || stage === "done") && <Btn block onClick={renderVideo} disabled={busy} style={{ height: 44 }}><Ico d={IC.film} size={16} /> {ui.t("Render Video")} · {f.duration * f.outputs} {ui.t("credits")}</Btn>}
+          <Btn primary block onClick={generateStoryboard} disabled={busy} style={{ height: 48, fontSize: 14 }}>{isStreaming ? <><Spinner light /> Generating…</> : <><Ico d={IC.sparkles} size={16} color={T.bg} /> {stage === "idle" || stage === "error" ? ui.t("Generate Storyboard") : "Regenerate script"}</>}</Btn>
+          {canRender && <Btn block onClick={generateImages} disabled={working} style={{ height: 44 }}><Ico d={IC.image} size={16} /> Generate images →</Btn>}
+          {stage === "publish" && <Btn block onClick={generateImages} disabled={working} style={{ height: 44 }}><Ico d={IC.variation} size={16} /> New variation (A/B)</Btn>}
         </div>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas — 8 Stages */}
       <div style={{ flex: 1, padding: 40, overflowY: "auto" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <Stepper stage={stage} />
-          {stage === "idle" && <CanvasCard><EmptyState /></CanvasCard>}
-          {stage === "error" && <CanvasCard><div style={{ background: T.bg2, border: `1px solid ${T.lineDark}`, borderRadius: 12, padding: 24, display: "flex", gap: 16, color: T.text }}><Ico d={IC.alert} size={24} color={T.sub} /><div><div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: T.ink }}>Error</div><div style={{ fontSize: 13 }}>{errorMsg}</div><div style={{ fontSize: 12, color: T.sub, marginTop: 12 }}>Make sure the backend is running on :8787.</div></div></div></CanvasCard>}
-          {(stage === "streaming" || stage === "preview") && preview && <CanvasCard><Storyboard preview={preview} streaming={stage === "streaming"} editable={stage === "preview"} onChange={setPreview} /></CanvasCard>}
 
-          {(stage === "rendering" || stage === "done") && (
-            <div style={{ display: "grid", gap: 20 }}>
-              {job && <CanvasCard>
-                <ProgressView job={job} />
-                {stage === "done" && job.outputUrl && (
-                  <div style={{ marginTop: 24 }}>
-                    <video ref={videoRef} src={job.outputUrl} crossOrigin="anonymous" controls style={{ width: "100%", maxHeight: 460, borderRadius: 12, background: T.bg3 }} />
-                    <div style={{ marginTop: 16 }}><VideoActions url={job.outputUrl} id={ids.jobId} videoRef={videoRef} onRegen={renderVideo} regenLabel="Generate variation" /></div>
-                    <ExportRow projectId={ids.projectId} />
-                    <PublishCard url={job.outputUrl} preview={preview} projectId={ids.projectId} />
-                    {Number(job.cost) > 0 && <div style={{ marginTop: 12 }}><Badge>Cost ~ ${Number(job.cost).toFixed(2)}</Badge></div>}
-                  </div>
-                )}
-              </CanvasCard>}
-              {scenes.length > 0 && <CanvasCard><div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 16 }}>Scenes</div><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 16 }}>{scenes.map(s => <SceneCard key={s.id} scene={s} onRegen={() => regenerate(s.id)} regening={regening === s.id} canRegen={stage === "done"} />)}</div></CanvasCard>}
+          {/* Stage 1: Idle */}
+          {stage === "idle" && <CanvasCard><EmptyState /></CanvasCard>}
+
+          {/* Error */}
+          {stage === "error" && <CanvasCard><div style={{ background: T.bg2, border: `1px solid ${T.lineDark}`, borderRadius: 12, padding: 24, display: "flex", gap: 16, color: T.text }}><Ico d={IC.alert} size={24} color={T.sub} /><div><div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: T.ink }}>Error</div><div style={{ fontSize: 13 }}>{errorMsg}</div><div style={{ fontSize: 12, color: T.sub, marginTop: 12 }}>Make sure the backend is running on :8787.</div></div></div></CanvasCard>}
+
+          {/* Stage 2: Analysis */}
+          {stage === "analysis" && <CanvasCard>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <Spinner size={18} />
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>② Analyzing product & market…</div>
             </div>
-          )}
+            {analysisData ? (
+              <div className="pop" style={{ background: T.bg2, borderRadius: 12, padding: 20, border: `1px solid ${T.line}` }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.ink, marginBottom: 8 }}>{analysisData.resumo}</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>{(analysisData.traits || []).map((t, i) => <Badge key={i}>{t}</Badge>)}</div>
+                <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.6 }}><strong>Audience:</strong> {analysisData.publico}</div>
+                <div style={{ fontSize: 13, color: T.sub, lineHeight: 1.6 }}><strong>Best angle:</strong> {analysisData.angulo}</div>
+              </div>
+            ) : <div style={{ color: T.muted, fontSize: 13 }}>Reading product info and finding the best sales angle…</div>}
+          </CanvasCard>}
+
+          {/* Stage 3: Concept */}
+          {stage === "concept" && <div style={{ display: "grid", gap: 20 }}>
+            {analysisData && <CanvasCard>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>② Analysis</div>
+              <div style={{ fontSize: 14, color: T.ink, marginBottom: 8 }}>{analysisData.resumo}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{(analysisData.traits || []).map((t, i) => <Badge key={i}>{t}</Badge>)}</div>
+            </CanvasCard>}
+            <CanvasCard>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <Spinner size={18} />
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.ink }}>③ Building creative concept…</div>
+              </div>
+              {conceptData ? (
+                <div className="pop" style={{ background: T.bg2, borderRadius: 12, padding: 20, border: `1px solid ${T.line}` }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: T.ink, marginBottom: 6 }}>{conceptData.titulo}</div>
+                  {conceptData.bigIdea && <div style={{ fontSize: 14, color: T.sub, marginBottom: 12, lineHeight: 1.5 }}>{conceptData.bigIdea}</div>}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={{ background: T.bg, borderRadius: 10, padding: 14, border: `1px solid ${T.line}` }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Hook (first 2s)</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>"{conceptData.gancho}"</div>
+                    </div>
+                    <div style={{ background: T.bg, borderRadius: 10, padding: 14, border: `1px solid ${T.line}` }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>CTA</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>"{conceptData.cta}"</div>
+                    </div>
+                  </div>
+                </div>
+              ) : <div style={{ color: T.muted, fontSize: 13 }}>Crafting the hook, CTA and creative direction…</div>}
+            </CanvasCard>
+          </div>}
+
+          {/* Stage 4: Storyboard */}
+          {stage === "storyboard" && <div style={{ display: "grid", gap: 20 }}>
+            {analysisData && <CanvasCard>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.sub, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>② Analysis · ③ Concept</div>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>{analysisData.resumo}</div><div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>{(analysisData.traits || []).map((t, i) => <Badge key={i}>{t}</Badge>)}</div></div>
+                {conceptData && <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{conceptData.titulo}</div><div style={{ fontSize: 12, color: T.sub, marginTop: 4 }}>Hook: "{conceptData.gancho}" · CTA: "{conceptData.cta}"</div></div>}
+              </div>
+            </CanvasCard>}
+            <CanvasCard>
+              <Storyboard preview={preview} streaming={!preview?.done} editable={preview?.done} onChange={setPreview} />
+            </CanvasCard>
+          </div>}
+
+          {/* Stage 5: Keyframes — review & approve, then Animate */}
+          {stage === "keyframes" && <CanvasCard>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              {working ? <Spinner size={18} /> : <Ico d={IC.image} size={18} color={T.ink} />}
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, flex: 1 }}>⑤ Keyframes {working ? "— generating…" : "— review & approve"}</div>
+              {!working && scenes.some(s => s.keyframe_url) && <Btn primary onClick={animateScenes}><Ico d={IC.film} size={15} color={T.bg} /> Animate scenes →</Btn>}
+            </div>
+            <div style={{ fontSize: 12, color: T.sub, marginBottom: 16 }}>The visual base for each scene. Regenerate any you don't like before animating.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
+              {scenes.map(s => <div key={s.id} className="pop card-hover" style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${T.line}`, background: T.bg2 }}>
+                <div style={{ aspectRatio: "9/16", background: T.bg3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {s.keyframe_url ? <img src={s.keyframe_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Spinner />}
+                </div>
+                <div style={{ padding: 10 }}>
+                  <div style={{ fontSize: 11, color: T.sub, marginBottom: 8 }}><strong>Scene {s.idx}</strong> · {s.duration_sec}s</div>
+                  <Btn block disabled={working || regening === s.id || !s.keyframe_url} onClick={() => regenKeyframe(s.id)} style={{ height: 30, fontSize: 12 }}>{regening === s.id ? <><Spinner size={12} /> …</> : <><Ico d={IC.refresh} size={12} /> Regenerate</>}</Btn>
+                </div>
+              </div>)}
+            </div>
+          </CanvasCard>}
+
+          {/* Stage 6: Animation — review & approve, then Produce */}
+          {stage === "animation" && <CanvasCard>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              {working ? <Spinner size={18} /> : <Ico d={IC.film} size={18} color={T.ink} />}
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.ink, flex: 1 }}>⑥ Animation {working ? "— animating…" : "— review & approve"}</div>
+              {!working && scenes.some(s => s.clip_url) && <Btn primary onClick={produce}><Ico d={IC.sparkles} size={15} color={T.bg} /> Produce final ad →</Btn>}
+            </div>
+            <div style={{ fontSize: 12, color: T.sub, marginBottom: 16 }}>Each scene animated from its keyframe. Re-animate any, then produce the final ad.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
+              {scenes.map(s => <div key={s.id} className="pop card-hover" style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${T.line}`, background: T.bg2 }}>
+                <div style={{ aspectRatio: "9/16", background: T.bg3, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {s.clip_url ? <video src={s.clip_url} muted loop playsInline onMouseOver={e => e.currentTarget.play()} onMouseOut={e => e.currentTarget.pause()} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : s.keyframe_url ? <img src={s.keyframe_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.4 }} /> : <Spinner />}
+                </div>
+                <div style={{ padding: 10 }}>
+                  <div style={{ fontSize: 11, color: T.sub, marginBottom: 8 }}><strong>Scene {s.idx}</strong></div>
+                  <Btn block disabled={working || regening === s.id || !s.clip_url} onClick={() => regenClip(s.id)} style={{ height: 30, fontSize: 12 }}>{regening === s.id ? <><Spinner size={12} /> …</> : <><Ico d={IC.refresh} size={12} /> Re-animate</>}</Btn>
+                </div>
+              </div>)}
+            </div>
+          </CanvasCard>}
+
+          {/* Stage 7: Production */}
+          {stage === "production" && <CanvasCard><div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 220, gap: 14, textAlign: "center" }}><Spinner size={36} /><div style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>⑦ Producing your ad…</div><div style={{ fontSize: 13, color: T.sub, maxWidth: 360 }}>Adding narration, music & captions, then stitching the final video.</div></div></CanvasCard>}
+
+          {/* Stage 8: Publish */}
+          {stage === "publish" && job && <div style={{ display: "grid", gap: 20 }}>
+            <CanvasCard>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <Ico d={IC.check} size={22} color={T.ink} />
+                <div style={{ fontSize: 18, fontWeight: 800, color: T.ink }}>⑧ Your ad is ready!</div>
+                {Number(job.cost) > 0 && <Badge style={{ marginLeft: "auto" }}>Cost ~ ${Number(job.cost).toFixed(2)}</Badge>}
+              </div>
+              {job.outputUrl && <>
+                <video ref={videoRef} src={job.outputUrl} crossOrigin="anonymous" controls style={{ width: "100%", maxHeight: 480, borderRadius: 12, background: T.bg3 }} />
+                <div style={{ marginTop: 16 }}><VideoActions url={job.outputUrl} id={ids.jobId} videoRef={videoRef} onRegen={renderVideo} regenLabel="Generate variation" /></div>
+                <ExportRow projectId={ids.projectId} />
+                <PublishCard url={job.outputUrl} preview={preview} projectId={ids.projectId} />
+              </>}
+            </CanvasCard>
+            {scenes.length > 0 && <CanvasCard>
+              <div style={{ fontSize: 14, fontWeight: 700, color: T.ink, marginBottom: 16 }}>All scenes</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 16 }}>{scenes.map(s => <SceneCard key={s.id} scene={s} onRegen={() => regenClip(s.id)} regening={regening === s.id} canRegen={true} />)}</div>
+            </CanvasCard>}
+          </div>}
         </div>
       </div>
       {showTemplates && <TemplatesModal onClose={() => setShowTemplates(false)} onPick={(t) => { setF(p => ({ ...p, ...t.values })); setShowTemplates(false); ui.notify("Template applied: " + t.name); }} />}
@@ -828,19 +970,20 @@ function ShareMenu({ url }) {
 const CanvasCard = ({ children }) => <div style={{ background: T.bg, padding: 32, border: `1px solid ${T.lineDark}`, borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.03)" }}>{children}</div>;
 function EmptyState() { return <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300, color: T.muted, textAlign: "center" }}><div style={{ width: 64, height: 64, background: T.bg2, border: `1px solid ${T.line}`, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}><Ico d={IC.server} size={32} color={T.sub} /></div><div style={{ fontSize: 18, fontWeight: 700, color: T.ink, marginBottom: 8 }}>Ready to create</div><div style={{ fontSize: 14, maxWidth: 360 }}>Upload the product photo, fill the brief and hit <strong>Generate Storyboard</strong>. Then just <strong>Render Video</strong>.</div></div>; }
 
-// Passos do fluxo de criação (sempre visível: você sabe onde está e o que vem).
+// Passos do fluxo de criação — 8 etapas detalhadas (sempre visível).
 function Stepper({ stage }) {
-  const steps = ["Brief", "Storyboard", "Render", "Publish"];
-  const idx = stage === "idle" ? 0 : (stage === "streaming" || stage === "preview") ? 1 : stage === "rendering" ? 2 : stage === "done" ? 3 : 0;
+  const steps = ["Brief", "Analysis", "Concept", "Storyboard", "Keyframes", "Animation", "Production", "Publish"];
+  const stageMap = { idle: 0, analysis: 1, concept: 2, storyboard: 3, keyframes: 4, animation: 5, production: 6, publish: 7 };
+  const idx = stageMap[stage] ?? 0;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 24, flexWrap: "wrap" }}>
       {steps.map((s, i) => (
         <React.Fragment key={s}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: "50%", background: i <= idx ? T.ink : T.bg, color: i <= idx ? "#fff" : T.muted, border: `1px solid ${i <= idx ? T.ink : T.lineDark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i < idx ? "✓" : i + 1}</div>
-            <span style={{ fontSize: 12, fontWeight: i === idx ? 700 : 500, color: i <= idx ? T.ink : T.muted, whiteSpace: "nowrap" }}>{s}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: 22, height: 22, borderRadius: "50%", background: i <= idx ? T.ink : T.bg, color: i <= idx ? "#fff" : T.muted, border: `1px solid ${i <= idx ? T.ink : T.lineDark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i < idx ? "✓" : i + 1}</div>
+            <span style={{ fontSize: 11, fontWeight: i === idx ? 700 : 500, color: i <= idx ? T.ink : T.muted, whiteSpace: "nowrap" }}>{s}</span>
           </div>
-          {i < steps.length - 1 && <div style={{ flex: 1, height: 1, background: i < idx ? T.ink : T.line }} />}
+          {i < steps.length - 1 && <div style={{ flex: 1, minWidth: 8, height: 1, background: i < idx ? T.ink : T.line }} />}
         </React.Fragment>
       ))}
     </div>

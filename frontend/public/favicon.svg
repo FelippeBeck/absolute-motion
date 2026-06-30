@@ -1,11 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#ffffff"/>
-  <g transform="translate(4 18.5) scale(0.28)">
-    <rect x="0" y="4" width="88" height="88" fill="#000000"/>
-    <polygon points="44,14 84,86 4,86" fill="#ffffff"/>
-    <polygon points="44,46 62,82 26,82" fill="#000000"/>
-    <rect x="100" y="4" width="88" height="88" fill="#000000"/>
-    <path d="M114 86 V16 L144 56 L174 16 V86" stroke="#ffffff" stroke-width="16" fill="none" stroke-linejoin="miter"/>
-    <path d="M146 90 L186 70" stroke="#ffffff" stroke-width="6" fill="none"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="16" fill="#000000"/>
+  <path d="M15 49 L32 13 L49 49" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22.5 38 H41.5" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round"/>
 </svg>

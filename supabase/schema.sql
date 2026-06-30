@@ -109,13 +109,34 @@ alter table projects enable row level security;
 alter table scenes enable row level security;
 alter table jobs enable row level security;
 alter table assets enable row level security;
+alter table profiles enable row level security;
+alter table folders enable row level security;
+alter table members enable row level security;
+alter table metrics enable row level security;
+alter table waitlist enable row level security;
 
+-- Projetos, jobs, cenas, assets (existentes)
 create policy "own_projects" on projects for all using (auth.uid() = user_id);
 create policy "own_jobs" on jobs for all using (auth.uid() = user_id);
 create policy "own_scenes" on scenes for all
   using (exists (select 1 from projects p where p.id = scenes.project_id and p.user_id = auth.uid()));
 create policy "own_assets" on assets for all
   using (exists (select 1 from projects p where p.id = assets.project_id and p.user_id = auth.uid()));
+
+-- Perfil: cada usuário acessa só o próprio perfil
+create policy "own_profile" on profiles for all using (auth.uid() = id);
+
+-- Pastas: cada usuário vê/cria/edita/deleta só as suas
+create policy "own_folders" on folders for all using (auth.uid() = user_id);
+
+-- Membros: o owner vê os membros do time dele
+create policy "own_members" on members for all using (auth.uid() = owner);
+
+-- Métricas: cada usuário vê/cria/edita/deleta só as suas
+create policy "own_metrics" on metrics for all using (auth.uid() = user_id);
+
+-- Waitlist: qualquer um autenticado pode inserir, ninguém lê (só admin via service key)
+create policy "waitlist_insert" on waitlist for insert with check (true);
 
 -- Lista de espera (fake door)
 create table if not exists waitlist (

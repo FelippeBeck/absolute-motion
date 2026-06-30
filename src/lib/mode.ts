@@ -21,6 +21,7 @@ export const has = {
     filled(process.env.R2_ACCESS_KEY_ID) &&
     filled(process.env.R2_SECRET_ACCESS_KEY),
   stripe: () => filled(process.env.STRIPE_SECRET_KEY),
+  inngest: () => filled(process.env.INNGEST_EVENT_KEY),
   // Sem fal não há como gerar imagem/vídeo de verdade → render simulada.
   demoRender: () => !filled(process.env.FAL_KEY),
 };

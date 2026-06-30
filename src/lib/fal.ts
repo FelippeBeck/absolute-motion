@@ -13,6 +13,25 @@ export const VIDEO_ENDPOINTS: Record<string, { endpoint: string; usdPerSec: numb
   "wan-2.5":           { endpoint: "fal-ai/wan/2.5/image-to-video",                    usdPerSec: 0.05 },
 };
 
+// Constraints por modelo de vídeo — garante que só mandamos params válidos.
+type ModelConstraints = {
+  minSec: number; maxSec: number;
+  aspects: string[];
+  resolutions: string[];
+  supportsEndFrame: boolean;
+};
+
+const VIDEO_CONSTRAINTS: Record<string, ModelConstraints> = {
+  "seedance-2.0":      { minSec: 5, maxSec: 10, aspects: ["9:16", "16:9", "1:1"], resolutions: ["720p", "1080p"],        supportsEndFrame: true },
+  "seedance-2.0-mini": { minSec: 5, maxSec: 10, aspects: ["9:16", "16:9", "1:1"], resolutions: ["720p", "1080p"],        supportsEndFrame: false },
+  "kling-3.0":         { minSec: 5, maxSec: 10, aspects: ["9:16", "16:9", "1:1"], resolutions: ["720p", "1080p"],        supportsEndFrame: true },
+  "kling-2.5-turbo":   { minSec: 5, maxSec: 10, aspects: ["9:16", "16:9", "1:1"], resolutions: ["720p", "1080p"],        supportsEndFrame: false },
+  "veo-3.1":           { minSec: 5, maxSec: 8,  aspects: ["9:16", "16:9", "1:1"], resolutions: ["720p", "1080p"],        supportsEndFrame: false },
+  "wan-2.5":           { minSec: 3, maxSec: 5,  aspects: ["9:16", "16:9", "1:1"], resolutions: ["480p", "720p", "1080p"], supportsEndFrame: false },
+};
+
+function clamp(val: number, min: number, max: number) { return Math.max(min, Math.min(max, val)); }
+
 export const IMAGE_ENDPOINTS: Record<string, { endpoint: string; usdPerImage: number }> = {
   "flux-dev":   { endpoint: "fal-ai/flux/dev",     usdPerImage: 0.025 },
   "flux-pro":   { endpoint: "fal-ai/flux-pro",     usdPerImage: 0.05 },
@@ -41,23 +60,35 @@ export async function generateImage(modelId: string, prompt: string, refImageUrl
 }
 
 // Anima uma imagem (image-to-video). Suporta start/end frame e áudio nativo.
+// Valida e ajusta os parâmetros de acordo com os constraints do modelo escolhido.
 export async function generateVideo(
   modelId: string,
   opts: { imageUrl: string; prompt: string; durationSec: number; aspectRatio: string; nativeAudio: boolean; endImageUrl?: string; resolution?: string }
 ) {
   if (!has.fal()) return { url: DEMO_VIDEO, cost: 0 };
 
-  const m = VIDEO_ENDPOINTS[modelId] ?? VIDEO_ENDPOINTS["seedance-2.0"];
+  const effectiveModel = VIDEO_ENDPOINTS[modelId] ? modelId : "seedance-2.0";
+  const m = VIDEO_ENDPOINTS[effectiveModel];
+  const c = VIDEO_CONSTRAINTS[effectiveModel] ?? VIDEO_CONSTRAINTS["seedance-2.0"];
+
+  // Clamp duração nos limites do modelo
+  const dur = clamp(opts.durationSec, c.minSec, c.maxSec);
+  // Aspect ratio: valida ou cai no primeiro suportado
+  const aspect = c.aspects.includes(opts.aspectRatio) ? opts.aspectRatio : c.aspects[0];
+  // Resolução: valida ou cai na mais alta suportada
+  const rawRes = opts.resolution === "4k" ? "2160p" : opts.resolution === "720p" ? "720p" : "1080p";
+  const res = c.resolutions.includes(rawRes) ? rawRes : c.resolutions[c.resolutions.length - 1];
+
   const input: Record<string, unknown> = {
     image_url: opts.imageUrl,
     prompt: opts.prompt,
-    duration: String(opts.durationSec),
-    aspect_ratio: opts.aspectRatio,
-    resolution: opts.resolution === "4k" ? "2160p" : opts.resolution === "720p" ? "720p" : "1080p",
+    duration: String(dur),
+    aspect_ratio: aspect,
+    resolution: res,
     generate_audio: opts.nativeAudio,
   };
-  if (opts.endImageUrl) input.end_image_url = opts.endImageUrl;
+  if (opts.endImageUrl && c.supportsEndFrame) input.end_image_url = opts.endImageUrl;
 
-  const res: any = await fal.subscribe(m.endpoint, { input, logs: true });
-  return { url: res.data.video?.url as string, cost: m.usdPerSec * opts.durationSec };
+  const result: any = await fal.subscribe(m.endpoint, { input, logs: true });
+  return { url: result.data.video?.url as string, cost: m.usdPerSec * dur };
 }
